@@ -105,7 +105,7 @@ createServer(async (request, response) => {
       }
       const registeredUser = users.find((item) => item.email === user.email) || user;
       const authToken = await createSessionToken(user.email);
-      await sendWelcomeEmail(registeredUser).catch((error) => {
+      await sendWelcomeEmail(registeredUser, getRequestBaseUrl(request)).catch((error) => {
         console.warn("Welcome email fallback:", error.message || error);
       });
       response.writeHead(200, {
@@ -170,7 +170,7 @@ createServer(async (request, response) => {
         const user = (await readUsers()).find((item) => item.email === email);
         if (user) {
           const token = await createPasswordResetToken(email);
-          const resetLink = `${PUBLIC_BASE_URL}/?resetToken=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+          const resetLink = `${getRequestBaseUrl(request)}/?resetToken=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
           await sendPasswordResetEmail(email, resetLink).catch((error) => {
             console.warn("Password reset email fallback:", error.message || error);
             console.log(`Password reset link for ${email}: ${resetLink}`);
@@ -419,6 +419,13 @@ function normalizeUser(payload = {}) {
 
 function normalizeEmail(value = "") {
   return String(value || "").trim().toLowerCase().slice(0, 160);
+}
+
+function getRequestBaseUrl(request) {
+  const forwardedProto = String(request.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const proto = forwardedProto || (request.socket?.encrypted ? "https" : "http");
+  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "").split(",")[0].trim();
+  return host ? `${proto}://${host}`.replace(/\/$/, "") : PUBLIC_BASE_URL;
 }
 
 function isStrongEnoughPassword(password = "") {
@@ -723,11 +730,11 @@ async function sendPasswordResetEmail(email, resetLink) {
   });
 }
 
-async function sendWelcomeEmail(user = {}) {
+async function sendWelcomeEmail(user = {}, baseUrl = PUBLIC_BASE_URL) {
   const email = normalizeEmail(user.email);
   if (!email) return;
 
-  const dashboardUrl = `${PUBLIC_BASE_URL}/#portfolio-page`;
+  const dashboardUrl = `${String(baseUrl || PUBLIC_BASE_URL).replace(/\/$/, "")}/#portfolio-page`;
   const subject = "BYA MarketDesk: аккаунт создан";
   const text = [
     `Здравствуйте, ${user.name || "BYA user"}!`,
