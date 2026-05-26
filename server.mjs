@@ -51,7 +51,7 @@ createServer(async (request, response) => {
           configured: isEmailConfigured(),
           provider: "resend",
           fromConfigured: Boolean(EMAIL_FROM),
-          publicBaseUrl: PUBLIC_BASE_URL,
+          publicBaseUrl: getRequestBaseUrl(request),
         }),
       );
       return;
