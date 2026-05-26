@@ -17,6 +17,7 @@ const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || `http://127.0.0.1:
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 30;
 const PASSWORD_MIN_LENGTH = 8;
 const PRIVATE_STATIC_PATHS = new Set(["/server.mjs", "/package.json", "/render.yaml", "/.gitignore"]);
+const EMAIL_FROM = process.env.EMAIL_FROM || "";
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -36,6 +37,23 @@ createServer(async (request, response) => {
         "cache-control": "no-store",
       });
       response.end(JSON.stringify({ ok: true, service: "bya-market-desk" }));
+      return;
+    }
+
+    if (url.pathname === "/api/email/status") {
+      response.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(
+        JSON.stringify({
+          ok: true,
+          configured: isEmailConfigured(),
+          provider: "resend",
+          fromConfigured: Boolean(EMAIL_FROM),
+          publicBaseUrl: PUBLIC_BASE_URL,
+        }),
+      );
       return;
     }
 
@@ -87,6 +105,9 @@ createServer(async (request, response) => {
       }
       const registeredUser = users.find((item) => item.email === user.email) || user;
       const authToken = await createSessionToken(user.email);
+      await sendWelcomeEmail(registeredUser).catch((error) => {
+        console.warn("Welcome email fallback:", error.message || error);
+      });
       response.writeHead(200, {
         "content-type": "application/json; charset=utf-8",
         "cache-control": "no-store",
@@ -685,28 +706,128 @@ async function sendPasswordResetEmail(email, resetLink) {
     "Если это были не вы, просто проигнорируйте письмо.",
   ].join("\n");
 
-  if (process.env.RESEND_API_KEY && process.env.EMAIL_FROM) {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM,
-        to: [email],
-        subject,
-        text,
-      }),
-    });
+  const html = renderEmailLayout({
+    title: "Восстановление пароля",
+    intro: "Вы запросили восстановление пароля в BYA MarketDesk.",
+    actionLabel: "Сбросить пароль",
+    actionUrl: resetLink,
+    note: "Ссылка действует 30 минут. Если это были не вы, просто проигнорируйте письмо.",
+  });
 
-    if (!response.ok) {
-      throw new Error(`Password reset email failed: ${response.status}`);
-    }
-    return;
+  await sendEmail({
+    to: email,
+    subject,
+    text,
+    html,
+    fallbackLog: `Password reset link for ${email}: ${resetLink}`,
+  });
+}
+
+async function sendWelcomeEmail(user = {}) {
+  const email = normalizeEmail(user.email);
+  if (!email) return;
+
+  const dashboardUrl = `${PUBLIC_BASE_URL}/#portfolio-page`;
+  const subject = "BYA MarketDesk: аккаунт создан";
+  const text = [
+    `Здравствуйте, ${user.name || "BYA user"}!`,
+    "",
+    "Ваш аккаунт BYA MarketDesk создан и привязан к этой почте.",
+    "Теперь на этот email будут приходить письма восстановления доступа.",
+    "",
+    `Открыть кабинет: ${dashboardUrl}`,
+  ].join("\n");
+  const html = renderEmailLayout({
+    title: "Аккаунт BYA MarketDesk создан",
+    intro: `Здравствуйте, ${escapeHtml(user.name || "BYA user")}! Ваш аккаунт привязан к этой почте.`,
+    actionLabel: "Открыть кабинет",
+    actionUrl: dashboardUrl,
+    note: "На этот email будут приходить письма восстановления доступа и важные уведомления аккаунта.",
+  });
+
+  await sendEmail({
+    to: email,
+    subject,
+    text,
+    html,
+    fallbackLog: `Welcome email for ${email}: ${dashboardUrl}`,
+  });
+}
+
+function isEmailConfigured() {
+  return Boolean(process.env.RESEND_API_KEY && EMAIL_FROM);
+}
+
+async function sendEmail({ to, subject, text, html, fallbackLog }) {
+  if (!isEmailConfigured()) {
+    console.log(fallbackLog || `Email fallback for ${to}: ${subject}`);
+    return { sent: false, reason: "email_not_configured" };
   }
 
-  console.log(`Password reset link for ${email}: ${resetLink}`);
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      from: EMAIL_FROM,
+      to: [to],
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    throw new Error(`Email failed: ${response.status}${details ? ` ${details.slice(0, 240)}` : ""}`);
+  }
+
+  return { sent: true };
+}
+
+function renderEmailLayout({ title, intro, actionLabel, actionUrl, note }) {
+  return `<!doctype html>
+<html lang="ru">
+  <body style="margin:0;background:#f3f7f6;font-family:Arial,Helvetica,sans-serif;color:#101820;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f7f6;padding:28px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #d9e8e4;border-radius:10px;overflow:hidden;">
+            <tr>
+              <td style="padding:22px 24px;background:#101820;color:#ffffff;">
+                <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#55d6be;">BYA MarketDesk</div>
+                <h1 style="margin:8px 0 0;font-size:24px;line-height:1.2;">${escapeHtml(title)}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;">
+                <p style="margin:0 0 18px;font-size:16px;line-height:1.55;">${intro}</p>
+                <a href="${escapeAttribute(actionUrl)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#159986;color:#ffffff;text-decoration:none;font-weight:700;">${escapeHtml(actionLabel)}</a>
+                <p style="margin:20px 0 0;font-size:13px;line-height:1.55;color:#456;">${escapeHtml(note)}</p>
+                <p style="margin:16px 0 0;font-size:12px;line-height:1.45;color:#789;">Если кнопка не открывается, скопируйте ссылку: <br><a href="${escapeAttribute(actionUrl)}" style="color:#159986;">${escapeHtml(actionUrl)}</a></p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeAttribute(value = "") {
+  return escapeHtml(value).replaceAll("`", "&#96;");
 }
 
 async function upsertUserPortfolio(email, portfolioData) {
