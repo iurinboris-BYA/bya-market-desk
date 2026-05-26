@@ -16,6 +16,7 @@ const RESET_TOKENS_FILE = join(DATA_DIR, "password-reset-tokens.json");
 const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${PORT}`).replace(/\/$/, "");
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 30;
 const PASSWORD_MIN_LENGTH = 8;
+const PRIVATE_STATIC_PATHS = new Set(["/server.mjs", "/package.json", "/render.yaml", "/.gitignore"]);
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -353,7 +354,7 @@ createServer(async (request, response) => {
     const requestedPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
     const filePath = normalize(join(ROOT, requestedPath));
 
-    if (!filePath.startsWith(ROOT)) {
+    if (!filePath.startsWith(ROOT) || PRIVATE_STATIC_PATHS.has(requestedPath) || requestedPath.startsWith("/.data/")) {
       response.writeHead(403);
       response.end("Forbidden");
       return;
