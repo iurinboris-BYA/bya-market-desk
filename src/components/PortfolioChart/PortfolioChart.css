@@ -1,0 +1,173 @@
+.cc-portfolio-chart-card {
+  --chart-line: #0074b8;
+  --chart-fill: rgba(0, 116, 184, 0.14);
+  --orange: #f59a23;
+  --green: #2ca84a;
+  --red: #c21f16;
+  --border: #d7e3ef;
+  --text: #111827;
+  --muted: #6b7280;
+
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.cc-portfolio-chart-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px 10px;
+}
+
+.cc-portfolio-chart-topbar h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.cc-portfolio-chart-topbar p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cc-positive {
+  color: var(--green);
+}
+
+.cc-negative {
+  color: var(--red);
+}
+
+.cc-portfolio-chart-actions,
+.cc-portfolio-chart-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cc-portfolio-chart-actions button,
+.cc-portfolio-chart-periods button {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: #f9fbfd;
+  color: #374151;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.cc-portfolio-chart-actions button:hover,
+.cc-portfolio-chart-periods button:hover {
+  border-color: #aac7e2;
+  background: #f2f7fc;
+}
+
+.cc-portfolio-chart-periods button.active {
+  border-color: var(--orange);
+  background: var(--orange);
+  color: #ffffff;
+}
+
+.cc-portfolio-chart-plot {
+  position: relative;
+  height: 300px;
+  margin: 4px 10px 0;
+}
+
+.cc-portfolio-chart-plot .recharts-cartesian-axis-tick-value {
+  fill: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cc-portfolio-chart-plot .recharts-cartesian-axis-line {
+  stroke: #cfdbe8;
+}
+
+.cc-portfolio-chart-badge {
+  position: absolute;
+  right: 12px;
+  min-width: 62px;
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.cc-portfolio-chart-badge.max {
+  top: 34px;
+  background: var(--green);
+}
+
+.cc-portfolio-chart-badge.min {
+  bottom: 42px;
+  background: var(--red);
+}
+
+.cc-portfolio-chart-tooltip {
+  display: grid;
+  gap: 8px;
+  min-width: 210px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.16);
+  padding: 12px;
+}
+
+.cc-portfolio-chart-tooltip div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cc-portfolio-chart-tooltip span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cc-portfolio-chart-tooltip strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.cc-portfolio-chart-periods {
+  justify-content: flex-end;
+  padding: 12px 16px 16px;
+}
+
+@media (max-width: 720px) {
+  .cc-portfolio-chart-topbar {
+    flex-direction: column;
+  }
+
+  .cc-portfolio-chart-actions,
+  .cc-portfolio-chart-periods {
+    width: 100%;
+  }
+
+  .cc-portfolio-chart-actions button,
+  .cc-portfolio-chart-periods button {
+    flex: 1 1 132px;
+  }
+
+  .cc-portfolio-chart-plot {
+    margin-inline: 4px;
+  }
+}

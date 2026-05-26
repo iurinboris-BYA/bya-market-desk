@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>BYA MarketDesk Mini App</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #eef3f2;
+        --panel: #ffffff;
+        --ink: #12202b;
+        --muted: #647582;
+        --line: #d8e2e0;
+        --accent: #159986;
+        --accent-2: #28dcc8;
+        --gold: #d9a441;
+        --gold-soft: #fff3d7;
+        --gain: #0f8a5f;
+        --loss: #be3f46;
+        --dark: #0b1620;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        background:
+          linear-gradient(90deg, rgba(8, 18, 26, 0.04) 1px, transparent 1px),
+          linear-gradient(0deg, rgba(8, 18, 26, 0.035) 1px, transparent 1px),
+          linear-gradient(135deg, rgba(21, 153, 134, 0.14), transparent 38%),
+          var(--bg);
+        background-size: 62px 62px, 62px 62px, auto, auto;
+        color: var(--ink);
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .app {
+        max-width: 520px;
+        min-height: 100vh;
+        margin: 0 auto;
+        padding-bottom: calc(74px + env(safe-area-inset-bottom));
+      }
+
+      .topbar {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        display: flex;
+        min-height: 52px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        background: var(--dark);
+        color: #ffffff;
+      }
+
+      .topbar strong {
+        font-size: 15px;
+      }
+
+      .topbar span {
+        color: #9eabba;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .screen {
+        display: none;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .screen.active {
+        display: grid;
+      }
+
+      .hero {
+        padding: 14px;
+        border: 1px solid rgba(21, 153, 134, 0.18);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.94);
+      }
+
+      .eyebrow,
+      .card span,
+      .metric span,
+      .row small {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        text-transform: uppercase;
+      }
+
+      .hero h1 {
+        margin: 6px 0 7px;
+        font-size: 34px;
+        line-height: 0.95;
+        text-transform: uppercase;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 750;
+        line-height: 1.4;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .pill,
+      .mini-button {
+        display: inline-flex;
+        min-height: 30px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 9px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+        font-size: 11px;
+        font-weight: 950;
+        text-decoration: none;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .metric,
+      .card,
+      .position,
+      .month-summary {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.95);
+      }
+
+      .metric {
+        display: grid;
+        gap: 5px;
+        min-height: 82px;
+        padding: 10px;
+      }
+
+      .metric strong {
+        font-size: 22px;
+      }
+
+      .card {
+        display: grid;
+        gap: 9px;
+        padding: 12px;
+      }
+
+      .card h2,
+      .dark-card h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .dark-card {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border-radius: 10px;
+        background: #141c29;
+        color: #ffffff;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .card .row {
+        border-color: var(--line);
+        background: #ffffff;
+      }
+
+      .coin {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent-2), var(--gold));
+        color: #07131a;
+        font-size: 10px;
+        font-weight: 1000;
+      }
+
+      .coin img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .row strong {
+        display: block;
+        overflow: hidden;
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .row small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .gain {
+        color: var(--gain);
+      }
+
+      .loss {
+        color: var(--loss);
+      }
+
+      .dark-card .gain {
+        color: #23c58c;
+      }
+
+      .dark-card .loss {
+        color: #ff6f7a;
+      }
+
+      .chart {
+        height: 132px;
+        border-radius: 9px;
+        background:
+          linear-gradient(180deg, rgba(21, 153, 134, 0.08), transparent),
+          linear-gradient(135deg, transparent 0 18%, rgba(21, 153, 134, 0.2) 18% 19%, transparent 19% 36%, rgba(217, 164, 65, 0.26) 36% 37%, transparent 37% 100%),
+          #f4faf8;
+      }
+
+      .position {
+        display: grid;
+        gap: 7px;
+        padding: 10px;
+      }
+
+      .position-head,
+      .admin-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .position-head strong {
+        font-size: 15px;
+      }
+
+      .position small,
+      .month-summary small,
+      .admin-row small {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 750;
+      }
+
+      .month-summary {
+        display: grid;
+        gap: 7px;
+        padding: 11px;
+        background:
+          linear-gradient(135deg, rgba(21, 153, 134, 0.08), rgba(217, 164, 65, 0.08)),
+          #ffffff;
+      }
+
+      .summary-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .admin-row {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .admin-row div {
+        min-width: 0;
+      }
+
+      .admin-row strong,
+      .admin-row small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .empty {
+        padding: 12px;
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        color: var(--muted);
+        text-align: center;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .bottom-nav {
+        position: fixed;
+        z-index: 20;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(14px);
+      }
+
+      .bottom-nav button {
+        display: grid;
+        min-height: 42px;
+        place-items: center;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 950;
+      }
+
+      .bottom-nav button.active {
+        background: #e4f8f3;
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <strong>BYA MarketDesk</strong>
+        <span id="topbarStatus">Telegram Mini App</span>
+      </header>
+
+      <section class="screen active" id="screen-market">
+        <div class="hero">
+          <span class="eyebrow">BYAcademy market</span>
+          <h1>Рынок</h1>
+          <p>Котировки, объём, новости и быстрые переходы в TradingView.</p>
+        </div>
+        <div class="pill-row">
+          <span class="pill" id="btcPill">BTC ...</span>
+          <span class="pill" id="marketPill">Market ...</span>
+          <span class="pill">USD</span>
+        </div>
+        <div class="metric-grid">
+          <article class="metric"><span>Market cap</span><strong id="marketCapMetric">...</strong></article>
+          <article class="metric"><span>Volume 24h</span><strong id="volumeMetric">...</strong></article>
+        </div>
+        <article class="dark-card">
+          <h2>Накопление объема</h2>
+          <div id="volumeList" class="mini-list"></div>
+        </article>
+        <article class="dark-card">
+          <h2>Крипто-новости</h2>
+          <a class="row" href="https://ru.investing.com/news/cryptocurrency-news" target="_blank" rel="noopener noreferrer">
+            <b class="coin">I</b>
+            <div><strong>Investing.com</strong><small>Новости крипторынка</small></div>
+            <b>›</b>
+          </a>
+          <a class="row" href="https://t.me/BYAcadem" target="_blank" rel="noopener noreferrer">
+            <b class="coin">B</b>
+            <div><strong>BYAcademy</strong><small>Посты и разборы канала</small></div>
+            <b>›</b>
+          </a>
+          <a class="row" href="https://t.me/+jFFzjj0SLDIxZWQy" target="_blank" rel="noopener noreferrer">
+            <b class="coin">5</b>
+            <div><strong>5 мини-уроков</strong><small>База по крипте от экосистемы</small></div>
+            <b>›</b>
+          </a>
+        </article>
+      </section>
+
+      <section class="screen" id="screen-portfolio">
+        <div class="hero">
+          <span class="eyebrow">BYA portfolio</span>
+          <h1>Портфель</h1>
+          <p>Стоимость, P/L, график и позиции в мобильном виде.</p>
+        </div>
+        <div class="metric-grid">
+          <article class="metric"><span>Сейчас</span><strong id="portfolioValue">0 $</strong></article>
+          <article class="metric"><span>P/L</span><strong id="portfolioPnl">0 $</strong></article>
+        </div>
+        <article class="card">
+          <h2>График стоимости</h2>
+          <div class="chart"></div>
+          <div class="pill-row"><span class="pill">1Д</span><span class="pill">1Н</span><span class="pill">1М</span><span class="pill">1Г</span></div>
+        </article>
+        <div id="portfolioList"></div>
+      </section>
+
+      <section class="screen" id="screen-closed">
+        <div class="hero">
+          <span class="eyebrow">BYA portfolio history</span>
+          <h1>Закрытые</h1>
+          <p>Архив фиксаций по месяцам с итогом и деталями.</p>
+        </div>
+        <div id="closedList"></div>
+      </section>
+
+      <section class="screen" id="screen-admin">
+        <div class="hero">
+          <span class="eyebrow">admin only</span>
+          <h1>Админ</h1>
+          <p>Приватный экран регистраций. В публичной версии скрывается для обычных пользователей.</p>
+        </div>
+        <div class="metric-grid">
+          <article class="metric"><span>Всего</span><strong id="adminTotal">0</strong></article>
+          <article class="metric"><span>Сегодня</span><strong id="adminToday">0</strong></article>
+        </div>
+        <article class="card">
+          <h2>Регистрации</h2>
+          <div id="adminUsers"></div>
+        </article>
+      </section>
+
+      <nav class="bottom-nav" aria-label="Навигация">
+        <button class="active" data-screen="market" type="button">Рынок</button>
+        <button data-screen="portfolio" type="button">Портфель</button>
+        <button data-screen="closed" type="button">Закрытые</button>
+        <button data-screen="admin" type="button">Админ</button>
+      </nav>
+    </div>
+
+    <script>
+      const API = "/api/coingecko/markets";
+      const STORAGE_KEYS = {
+        portfolio: "bya.compare.portfolio.v1",
+        closedPositions: "bya.compare.closed.positions.v1",
+      };
+      const stableSymbols = new Set(["usdt", "usdc", "dai", "busd", "fdusd", "usde", "wbtc", "steth"]);
+      const state = {
+        coins: [],
+        portfolio: readStorage(STORAGE_KEYS.portfolio, []),
+        closedPositions: readStorage(STORAGE_KEYS.closedPositions, []),
+      };
+
+      document.querySelectorAll("[data-screen]").forEach((button) => {
+        button.addEventListener("click", () => showScreen(button.dataset.screen));
+      });
+
+      document.addEventListener("click", (event) => {
+        const link = event.target.closest?.('a[href^="http"]');
+        if (!link) return;
+        event.preventDefault();
+        openExternal(link.href);
+      });
+
+      initTelegram();
+      loadMarket();
+      renderAll();
+      loadAdmin();
+
+      function showScreen(screen) {
+        document.querySelectorAll(".screen").forEach((node) => node.classList.toggle("active", node.id === `screen-${screen}`));
+        document.querySelectorAll("[data-screen]").forEach((button) => button.classList.toggle("active", button.dataset.screen === screen));
+        document.querySelector("#topbarStatus").textContent = screen === "admin" ? "private" : "Telegram Mini App";
+      }
+
+      async function loadMarket() {
+        try {
+          const url = new URL(API, location.origin);
+          url.search = new URLSearchParams({
+            vs_currency: "usd",
+            order: "market_cap_desc",
+            per_page: "250",
+            page: "1",
+            sparkline: "false",
+            price_change_percentage: "1h,24h,30d",
+          });
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(response.status);
+          state.coins = await response.json();
+        } catch (error) {
+          state.coins = getFallbackCoins();
+        }
+        renderAll();
+      }
+
+      async function loadAdmin() {
+        try {
+          const response = await fetch("/api/admin/users", { cache: "no-store" });
+          if (!response.ok) throw new Error(response.status);
+          const data = await response.json();
+          renderAdmin(data.users || []);
+        } catch (error) {
+          renderAdmin([]);
+        }
+      }
+
+      function renderAll() {
+        renderMarket();
+        renderPortfolio();
+        renderClosed();
+      }
+
+      function renderMarket() {
+        const btc = findCoin("bitcoin");
+        const marketCap = state.coins.reduce((sum, coin) => sum + (Number(coin.market_cap) || 0), 0);
+        const volume = state.coins.reduce((sum, coin) => sum + (Number(coin.total_volume) || 0), 0);
+        const marketChange = state.coins.slice(0, 100).reduce((sum, coin) => sum + (Number(coin.price_change_percentage_24h) || 0), 0) / Math.max(state.coins.slice(0, 100).length, 1);
+
+        document.querySelector("#btcPill").textContent = `BTC ${btc ? formatMoney(btc.current_price) : "..."}`;
+        document.querySelector("#marketPill").textContent = `Market ${formatPercent(marketChange)}`;
+        document.querySelector("#marketCapMetric").textContent = formatCompact(marketCap);
+        document.querySelector("#volumeMetric").textContent = formatCompact(volume);
+
+        const rows = state.coins
+          .filter((coin) => Number(coin.market_cap_rank || 9999) <= 200)
+          .filter((coin) => {
+            const symbol = String(coin.symbol).toLowerCase();
+            const name = String(coin.name || "").toLowerCase();
+            const stableLike = stableSymbols.has(symbol) || symbol.startsWith("usd") || symbol.endsWith("usd") || name.includes("dollar");
+            return !stableLike && coin.id !== "bitcoin" && Number(coin.total_volume) > 0 && Number(coin.market_cap) > 0;
+          })
+          .map((coin) => ({ coin, ratio: Number(coin.total_volume) / Number(coin.market_cap), change: Number(coin.price_change_percentage_24h) || 0 }))
+          .sort((a, b) => b.ratio - a.ratio)
+          .slice(0, 3);
+
+        document.querySelector("#volumeList").innerHTML = rows.length
+          ? rows
+              .map(
+                ({ coin, ratio, change }) => `
+                  <a class="row" href="${getTradingViewUrl(coin)}" target="_blank" rel="noopener noreferrer">
+                    <b class="coin">${coin.image ? `<img src="${coin.image}" alt="">` : coin.symbol.slice(0, 1).toUpperCase()}</b>
+                    <div><strong>${escapeHtml(coin.name)}</strong><small>объём ${formatCompact(coin.total_volume)} · 24ч ${formatPercent(change)}</small></div>
+                    <b class="${changeClass(change)}">${(ratio * 100).toFixed(1)}%</b>
+                  </a>
+                `,
+              )
+              .join("")
+          : `<div class="empty">Загрузка лидеров объёма...</div>`;
+      }
+
+      function renderPortfolio() {
+        const entries = state.portfolio.map((position) => ({ position, coin: findCoin(position.coinId) })).filter((item) => item.coin);
+        const totals = entries.reduce(
+          (sum, item) => {
+            const amount = Number(item.position.amount) || 0;
+            const entry = Number(item.position.cost) || 0;
+            const current = Number(item.coin.current_price) || entry;
+            sum.value += amount * current;
+            sum.cost += amount * entry;
+            return sum;
+          },
+          { value: 0, cost: 0 },
+        );
+        totals.pnl = totals.value - totals.cost;
+
+        document.querySelector("#portfolioValue").textContent = formatMoney(totals.value);
+        const pnlEl = document.querySelector("#portfolioPnl");
+        pnlEl.textContent = formatPortfolioMoney(totals.pnl);
+        pnlEl.className = changeClass(totals.pnl);
+
+        document.querySelector("#portfolioList").innerHTML = entries.length
+          ? entries
+              .slice(0, 8)
+              .map((item) => {
+                const amount = Number(item.position.amount) || 0;
+                const entry = Number(item.position.cost) || 0;
+                const current = Number(item.coin.current_price) || entry;
+                const pnl = amount * (current - entry);
+                return `
+                  <article class="position">
+                    <div class="position-head"><strong>${escapeHtml(item.coin.name)}</strong><b class="${changeClass(pnl)}">${formatPortfolioMoney(pnl)}</b></div>
+                    <small>${formatAmount(amount)} ${item.coin.symbol.toUpperCase()} · цена покупки ${formatMoney(entry)}</small>
+                    <div class="pill-row">
+                      <a class="mini-button" href="${getTradingViewUrl(item.coin)}" target="_blank" rel="noopener noreferrer">TV</a>
+                      <span class="mini-button">Закрыть</span>
+                    </div>
+                  </article>
+                `;
+              })
+              .join("")
+          : `<div class="empty">Портфель пока пустой.</div>`;
+      }
+
+      function renderClosed() {
+        const groups = getClosedGroups();
+        document.querySelector("#closedList").innerHTML = groups.length
+          ? groups
+              .map(
+                (group) => `
+                  <article class="month-summary">
+                    <strong>${group.label}</strong>
+                    <small>${group.positions.length} закрытых позиций</small>
+                    <div class="summary-line"><span>Зафиксировано</span><strong>${formatMoney(group.closeValue)}</strong></div>
+                    <div class="summary-line"><span>P/L месяца</span><strong class="${changeClass(group.pnl)}">${formatPortfolioMoney(group.pnl)}</strong></div>
+                  </article>
+                  ${group.positions
+                    .slice(0, 5)
+                    .map(
+                      (position) => `
+                        <article class="position">
+                          <div class="position-head"><strong>${escapeHtml(position.coinName || position.symbol || "Позиция")}</strong><b class="${changeClass(position.pnl)}">${formatPortfolioMoney(position.pnl)}</b></div>
+                          <small>${formatAmount(position.amount)} ${position.symbol || ""} · закрыто ${formatDate(position.closedAt)}</small>
+                        </article>
+                      `,
+                    )
+                    .join("")}
+                `,
+              )
+              .join("")
+          : `<div class="empty">Закрытых позиций пока нет.</div>`;
+      }
+
+      function renderAdmin(users) {
+        document.querySelector("#adminTotal").textContent = users.length;
+        document.querySelector("#adminToday").textContent = users.filter((user) => new Date(user.createdAt).toDateString() === new Date().toDateString()).length;
+        document.querySelector("#adminUsers").innerHTML = users.length
+          ? users
+              .slice(0, 8)
+              .map(
+                (user) => `
+                  <div class="admin-row">
+                    <div><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)} · ${escapeHtml(user.role)}</small></div>
+                    <small>${formatDate(user.createdAt)}</small>
+                  </div>
+                `,
+              )
+              .join("")
+          : `<div class="empty">Регистраций пока нет.</div>`;
+      }
+
+      function getClosedGroups() {
+        const map = new Map();
+        state.closedPositions.forEach((position) => {
+          const date = new Date(position.closedAt || Date.now());
+          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+          if (!map.has(key)) {
+            map.set(key, {
+              key,
+              label: capitalize(date.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })),
+              positions: [],
+              closeValue: 0,
+              pnl: 0,
+            });
+          }
+          const group = map.get(key);
+          group.positions.push(position);
+          group.closeValue += Number(position.closeValue) || 0;
+          group.pnl += Number(position.pnl) || 0;
+        });
+        return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key));
+      }
+
+      function initTelegram() {
+        const app = window.Telegram?.WebApp;
+        if (!app) return;
+        app.ready?.();
+        app.expand?.();
+      }
+
+      function openExternal(href) {
+        const app = window.Telegram?.WebApp;
+        if (app?.openTelegramLink && href.includes("t.me/")) return app.openTelegramLink(href);
+        if (app?.openLink) return app.openLink(href);
+        const opened = window.open(href, "_blank", "noopener,noreferrer");
+        if (!opened) location.assign(href);
+      }
+
+      function findCoin(id) {
+        return state.coins.find((coin) => coin.id === id);
+      }
+
+      function readStorage(key, fallback) {
+        try {
+          const value = localStorage.getItem(key);
+          return value ? JSON.parse(value) : fallback;
+        } catch {
+          return fallback;
+        }
+      }
+
+      function getTradingViewUrl(coin) {
+        const pair = `${String(coin?.symbol || "").toUpperCase()}USDT`;
+        return `https://www.tradingview.com/chart/?symbol=BINANCE%3A${encodeURIComponent(pair)}`;
+      }
+
+      function getFallbackCoins() {
+        return [
+          { id: "bitcoin", symbol: "btc", name: "Bitcoin", current_price: 77296, market_cap: 1540000000000, total_volume: 25580000000, market_cap_rank: 1, price_change_percentage_24h: 0.37 },
+          { id: "ethereum", symbol: "eth", name: "Ethereum", current_price: 2124, market_cap: 255700000000, total_volume: 10120000000, market_cap_rank: 2, price_change_percentage_24h: 0.23 },
+          { id: "near", symbol: "near", name: "NEAR Protocol", current_price: 2.31, market_cap: 3000000000, total_volume: 1160000000, market_cap_rank: 41, price_change_percentage_24h: 28.54 },
+          { id: "monad", symbol: "mon", name: "Monad", current_price: 0.04, market_cap: 336000000, total_volume: 106000000, market_cap_rank: 80, price_change_percentage_24h: 8.12 },
+          { id: "genius", symbol: "genius", name: "Genius", current_price: 0.02, market_cap: 200000000, total_volume: 60900000, market_cap_rank: 92, price_change_percentage_24h: 5.4 },
+        ];
+      }
+
+      function formatMoney(value) {
+        const amount = Number(value) || 0;
+        return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD", maximumFractionDigits: amount > 100 ? 0 : 4 }).format(amount);
+      }
+
+      function formatPortfolioMoney(value) {
+        return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
+      }
+
+      function formatCompact(value) {
+        return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 }).format(Number(value) || 0);
+      }
+
+      function formatPercent(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return "n/a";
+        return `${number > 0 ? "+" : ""}${number.toFixed(2)}%`;
+      }
+
+      function formatAmount(value) {
+        return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 8 }).format(Number(value) || 0);
+      }
+
+      function formatDate(value) {
+        if (!value) return "-";
+        return new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+      }
+
+      function changeClass(value) {
+        return Number(value) >= 0 ? "gain" : "loss";
+      }
+
+      function capitalize(value) {
+        const text = String(value || "");
+        return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+    </script>
+  </body>
+</html>

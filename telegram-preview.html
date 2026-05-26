@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BYA Telegram Mini App Preview</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #eef3f2;
+        --ink: #12202b;
+        --muted: #647582;
+        --line: #d8e2e0;
+        --accent: #159986;
+        --accent-2: #28dcc8;
+        --gold: #d9a441;
+        --gold-soft: #fff3d7;
+        --gain: #0f8a5f;
+        --loss: #be3f46;
+        --dark: #0b1620;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          linear-gradient(90deg, rgba(8, 18, 26, 0.04) 1px, transparent 1px),
+          linear-gradient(0deg, rgba(8, 18, 26, 0.035) 1px, transparent 1px),
+          linear-gradient(135deg, rgba(21, 153, 134, 0.13), transparent 36%),
+          var(--bg);
+        background-size: 72px 72px, 72px 72px, auto, auto;
+        color: var(--ink);
+        font-family: Inter, "Segoe UI", Arial, sans-serif;
+      }
+
+      .preview-shell {
+        width: min(1500px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 28px 0 36px;
+      }
+
+      .preview-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .preview-header p {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 1000;
+        text-transform: uppercase;
+      }
+
+      .preview-header h1 {
+        margin: 0;
+        font-size: 38px;
+        line-height: 1;
+      }
+
+      .preview-header small {
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      .phones-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(260px, 1fr));
+        gap: 18px;
+      }
+
+      .phone {
+        overflow: hidden;
+        border: 10px solid #07131a;
+        border-radius: 34px;
+        background: #f7faf9;
+        box-shadow: 0 26px 70px rgba(8, 18, 26, 0.24);
+      }
+
+      .phone-screen {
+        min-height: 720px;
+        background:
+          linear-gradient(135deg, rgba(40, 220, 200, 0.1), transparent 42%),
+          #f7faf9;
+      }
+
+      .tg-bar {
+        display: flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        background: var(--dark);
+        color: white;
+      }
+
+      .tg-bar strong {
+        font-size: 14px;
+      }
+
+      .tg-bar span {
+        color: #9eabba;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .mobile-content {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .mobile-hero {
+        padding: 14px;
+        border: 1px solid rgba(21, 153, 134, 0.18);
+        border-radius: 10px;
+        background: white;
+      }
+
+      .mobile-hero span,
+      .eyebrow {
+        display: block;
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 1000;
+        text-transform: uppercase;
+      }
+
+      .mobile-hero h2 {
+        margin: 6px 0 6px;
+        font-size: 30px;
+        line-height: 0.95;
+        text-transform: uppercase;
+      }
+
+      .mobile-hero small {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .pill {
+        display: inline-flex;
+        min-height: 28px;
+        align-items: center;
+        padding: 0 9px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .metric {
+        display: grid;
+        gap: 5px;
+        min-height: 82px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: white;
+      }
+
+      .metric span,
+      .card span,
+      .row small {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .metric strong {
+        font-size: 22px;
+      }
+
+      .dark-card,
+      .card {
+        border-radius: 10px;
+      }
+
+      .dark-card {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        background: #141c29;
+        color: white;
+      }
+
+      .dark-card h3,
+      .card h3 {
+        margin: 0;
+        font-size: 17px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .coin {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent-2), var(--gold));
+        color: #07131a;
+        font-size: 10px;
+        font-weight: 1000;
+      }
+
+      .row strong {
+        display: block;
+        overflow: hidden;
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .gain {
+        color: var(--gain);
+      }
+
+      .loss {
+        color: var(--loss);
+      }
+
+      .dark-card .gain {
+        color: #23c58c;
+      }
+
+      .dark-card .loss {
+        color: #ff6f7a;
+      }
+
+      .card {
+        display: grid;
+        gap: 9px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        background: white;
+      }
+
+      .chart {
+        height: 126px;
+        border-radius: 8px;
+        background:
+          linear-gradient(180deg, rgba(21, 153, 134, 0.08), transparent),
+          linear-gradient(135deg, transparent 0 20%, rgba(21, 153, 134, 0.2) 20% 21%, transparent 21% 36%, rgba(217, 164, 65, 0.28) 36% 37%, transparent 37% 100%);
+      }
+
+      .position {
+        display: grid;
+        gap: 6px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: white;
+      }
+
+      .position-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .position-head strong {
+        font-size: 15px;
+      }
+
+      .mini-table {
+        display: grid;
+        gap: 7px;
+      }
+
+      .month-summary {
+        display: grid;
+        gap: 5px;
+        padding: 11px;
+        border: 1px solid rgba(21, 153, 134, 0.2);
+        border-radius: 9px;
+        background: linear-gradient(135deg, rgba(21, 153, 134, 0.08), rgba(217, 164, 65, 0.08));
+      }
+
+      .month-summary .metric-grid {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .month-summary .metric-grid div {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .month-summary .metric-grid span {
+        min-width: 0;
+      }
+
+      .bottom-nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        padding: 8px;
+        border-top: 1px solid var(--line);
+        background: white;
+      }
+
+      .bottom-nav span {
+        display: grid;
+        min-height: 38px;
+        place-items: center;
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .bottom-nav .active {
+        background: #e4f8f3;
+        color: var(--accent);
+      }
+
+      .admin-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .admin-row {
+        display: grid;
+        gap: 3px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="preview-shell">
+      <header class="preview-header">
+        <div>
+          <p>Telegram Mini App concept</p>
+          <h1>BYA MarketDesk Mobile</h1>
+        </div>
+        <small>4 ключевых экрана для согласования перед разработкой</small>
+      </header>
+
+      <section class="phones-grid">
+        <article class="phone">
+          <div class="phone-screen">
+            <div class="tg-bar"><strong>BYA MarketDesk</strong><span>Telegram</span></div>
+            <div class="mobile-content">
+              <div class="mobile-hero">
+                <span>BYAcademy market</span>
+                <h2>Рынок</h2>
+                <small>Котировки, объём, новости и быстрый переход в TradingView.</small>
+              </div>
+              <div class="pill-row">
+                <span class="pill">BTC 77 296 $</span>
+                <span class="pill">Market +0.37%</span>
+                <span class="pill">USD</span>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><span>Market cap</span><strong>2,8 трлн $</strong></div>
+                <div class="metric"><span>Volume 24h</span><strong>127 млрд $</strong></div>
+              </div>
+              <div class="dark-card">
+                <h3>Накопление объема</h3>
+                <div class="row"><b class="coin">N</b><div><strong>NEAR Protocol</strong><small>объём 1,16 млрд $</small></div><b class="gain">38.5%</b></div>
+                <div class="row"><b class="coin">M</b><div><strong>Monad</strong><small>объём 106 млн $</small></div><b class="gain">31.5%</b></div>
+                <div class="row"><b class="coin">G</b><div><strong>Genius</strong><small>объём 60,9 млн $</small></div><b class="gain">30.3%</b></div>
+              </div>
+              <div class="dark-card">
+                <h3>Крипто-новости</h3>
+                <div class="row"><b class="coin">I</b><div><strong>Investing.com</strong><small>Парадокс биткоина...</small></div><b>›</b></div>
+                <div class="row"><b class="coin">B</b><div><strong>BYAcademy</strong><small>5 мини-уроков по крипте</small></div><b>›</b></div>
+              </div>
+            </div>
+            <nav class="bottom-nav"><span class="active">Рынок</span><span>Портфель</span><span>Закрытые</span><span>Админ</span></nav>
+          </div>
+        </article>
+
+        <article class="phone">
+          <div class="phone-screen">
+            <div class="tg-bar"><strong>BYA Portfolio</strong><span>USD</span></div>
+            <div class="mobile-content">
+              <div class="mobile-hero">
+                <span>BYA portfolio</span>
+                <h2>Портфель</h2>
+                <small>Стоимость, P/L, позиции и фиксация прямо в мобильном виде.</small>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><span>Сейчас</span><strong>154 592 $</strong></div>
+                <div class="metric"><span>P/L</span><strong class="loss">-45,72 $</strong></div>
+              </div>
+              <div class="card">
+                <h3>График стоимости</h3>
+                <div class="chart"></div>
+                <div class="pill-row"><span class="pill">1Д</span><span class="pill">1Н</span><span class="pill">1М</span><span class="pill">1Г</span></div>
+              </div>
+              <div class="position">
+                <div class="position-head"><strong>Bitcoin</strong><b class="loss">-0.16%</b></div>
+                <small>2 BTC · цена покупки 77 463 $</small>
+                <div class="pill-row"><span class="pill">TV</span><span class="pill">Закрыть</span><span class="pill">+ Добавить</span></div>
+              </div>
+              <div class="position">
+                <div class="position-head"><strong>Ethereum</strong><b class="gain">+0.23%</b></div>
+                <small>1 ETH · цена покупки 2 124 $</small>
+                <div class="pill-row"><span class="pill">TV</span><span class="pill">Закрыть</span></div>
+              </div>
+            </div>
+            <nav class="bottom-nav"><span>Рынок</span><span class="active">Портфель</span><span>Закрытые</span><span>Админ</span></nav>
+          </div>
+        </article>
+
+        <article class="phone">
+          <div class="phone-screen">
+            <div class="tg-bar"><strong>BYA History</strong><span>P/L</span></div>
+            <div class="mobile-content">
+              <div class="mobile-hero">
+                <span>BYA portfolio history</span>
+                <h2>Закрытые</h2>
+                <small>Архив фиксаций по месяцам с итогом и деталями.</small>
+              </div>
+              <div class="month-summary">
+                <strong>Май 2026 г.</strong>
+                <small>10 закрытых позиций</small>
+                <div class="metric-grid">
+                  <div><span>Зафиксировано</span><strong>1 161 109 $</strong></div>
+                  <div><span>P/L месяца</span><strong class="loss">-330,83 $</strong></div>
+                </div>
+              </div>
+              <div class="mini-table">
+                <div class="position"><div class="position-head"><strong>Bitcoin</strong><b class="gain">0,00 $</b></div><small>1 BTC · закрыто 22 мая</small></div>
+                <div class="position"><div class="position-head"><strong>Bitcoin</strong><b class="loss">-126,13 $</b></div><small>1 BTC · вход 77 463 $</small></div>
+                <div class="position"><div class="position-head"><strong>Bitcoin</strong><b class="loss">-187,28 $</b></div><small>2 BTC · вход 77 431 $</small></div>
+              </div>
+            </div>
+            <nav class="bottom-nav"><span>Рынок</span><span>Портфель</span><span class="active">Закрытые</span><span>Админ</span></nav>
+          </div>
+        </article>
+
+        <article class="phone">
+          <div class="phone-screen">
+            <div class="tg-bar"><strong>BYA Admin</strong><span>private</span></div>
+            <div class="mobile-content">
+              <div class="mobile-hero">
+                <span>admin only</span>
+                <h2>Админ</h2>
+                <small>Экран виден только тебе: регистрации и активность пользователей.</small>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><span>Всего</span><strong>128</strong></div>
+                <div class="metric"><span>Сегодня</span><strong>14</strong></div>
+              </div>
+              <div class="card">
+                <h3>Регистрации</h3>
+                <div class="admin-list">
+                  <div class="admin-row"><strong>Алексей</strong><small>alex@example.com · Инвестор</small></div>
+                  <div class="admin-row"><strong>Мария</strong><small>maria@example.com · Партнер BYAcademy</small></div>
+                  <div class="admin-row"><strong>Игорь</strong><small>igor@example.com · Аналитик</small></div>
+                </div>
+              </div>
+              <div class="card">
+                <h3>Доступ</h3>
+                <small>Кнопка админки скрыта для обычных пользователей и открывается только по admin-доступу.</small>
+              </div>
+            </div>
+            <nav class="bottom-nav"><span>Рынок</span><span>Портфель</span><span>Закрытые</span><span class="active">Админ</span></nav>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

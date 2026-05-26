@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BYA MarketDesk</title>
+    <link rel="stylesheet" href="styles.css?v=20260525-auth-reset" />
+  </head>
+  <body>
+    <div class="market-backdrop" aria-hidden="true">
+      <div class="backdrop-token">BYA</div>
+      <div class="backdrop-candles">
+        <span style="--x: 7%; --h: 72px; --move: 18px; --delay: -0.5s"></span>
+        <span style="--x: 14%; --h: 42px; --move: -12px; --delay: -3s"></span>
+        <span style="--x: 23%; --h: 96px; --move: 26px; --delay: -5s"></span>
+        <span style="--x: 34%; --h: 58px; --move: -18px; --delay: -1.5s"></span>
+        <span style="--x: 47%; --h: 112px; --move: 20px; --delay: -4s"></span>
+        <span style="--x: 59%; --h: 46px; --move: -14px; --delay: -2.5s"></span>
+        <span style="--x: 71%; --h: 88px; --move: 22px; --delay: -6s"></span>
+        <span style="--x: 83%; --h: 54px; --move: -20px; --delay: -1s"></span>
+        <span style="--x: 93%; --h: 104px; --move: 28px; --delay: -4.8s"></span>
+      </div>
+    </div>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Навигация">
+        <div class="brand">
+          <div class="brand-mark">BYA</div>
+          <div>
+            <strong>BYA MarketDesk</strong>
+            <span>BYAcademy market desk</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <a href="#market" class="active">Рынок</a>
+          <a href="#portfolio-page">Портфолио</a>
+          <a href="#watchlist-page">Избранное</a>
+          <a href="#closed-positions">Закрытые позиции</a>
+        </nav>
+
+        <nav class="legal-links" aria-label="Юридические документы">
+          <a href="#legal-terms">Пользовательское соглашение, оферта, конфиденциальность</a>
+        </nav>
+
+        <a class="ecosystem-card" href="https://t.me/+jFFzjj0SLDIxZWQy" target="_blank" rel="noopener noreferrer">
+          <span>BYAcademy Ecosystem</span>
+          <strong>5 мини-уроков по крипте</strong>
+          <small>Канал, разборы рынка и база для уверенного старта.</small>
+          <em>Получить уроки</em>
+        </a>
+
+        <a class="ecosystem-card academy-card" href="https://byacademy.pro/" target="_blank" rel="noopener noreferrer">
+          <span>BYAcademy Ecosystem</span>
+          <strong>Академия P2P-трейдинга и арбитража BYA</strong>
+          <small>Обучение, практика, кураторы и экосистема инструментов BYAcademy.</small>
+          <em>Открыть академию</em>
+        </a>
+
+        <div class="account-card utility-card-hidden" id="accountCard" hidden>
+          <span>Личный кабинет</span>
+          <strong id="accountName">Гость BYA</strong>
+          <small id="accountEmail">Регистрация откроет сохранение профиля</small>
+          <button id="sidebarAuthBtn" class="account-button" type="button">Регистрация</button>
+        </div>
+
+        <div class="source-card utility-card-hidden" hidden>
+          <span>Источник данных</span>
+          <strong>CoinGecko API</strong>
+          <small id="dataStatus">Ожидаю загрузку</small>
+          <small id="updateCadence">Live quotes · 30 сек</small>
+          <small id="liveStreamStatus">Realtime stream · ожидание</small>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="hero-orbit" aria-hidden="true">
+            <span class="float-token token-btc">BTC</span>
+            <span class="float-token token-eth">ETH</span>
+            <span class="float-token token-xrp">XRP</span>
+            <span class="float-token token-bya">BYA</span>
+          </div>
+          <div>
+            <p class="eyebrow">BYAcademy market intelligence</p>
+            <h1><span>BYA</span> MarketDesk</h1>
+            <p class="lead">
+              Яркий рабочий терминал для крипторынка, портфеля, метрик риска и быстрых решений по цифровым активам.
+            </p>
+            <div class="live-strip" aria-label="Живые котировки">
+              <span id="btcLivePrice">BTC ...</span>
+              <span id="marketLiveChange">Market 24h ...</span>
+              <span id="altseasonLive">Altseason ...</span>
+              <span id="refreshCountdown">Next update ...</span>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <div class="topbar-control-row">
+              <button id="authBtn" class="auth-button" type="button">Войти / регистрация</button>
+              <label class="search-field">
+                <span>Поиск</span>
+                <input id="searchInput" type="search" placeholder="BTC, Ethereum, Solana" autocomplete="off" />
+              </label>
+              <select id="currencySelect" aria-label="Валюта">
+                <option value="usd">USD</option>
+                <option value="eur">EUR</option>
+                <option value="rub">RUB</option>
+                <option value="gbp">GBP</option>
+              </select>
+              <button id="refreshBtn" class="icon-button" title="Обновить курсы" type="button">↻</button>
+            </div>
+            <a class="admin-topbar-link" href="/admin.html">Admin · Регистрации</a>
+          </div>
+        </header>
+
+        <section class="metrics-grid" aria-label="Сводка">
+          <article class="metric">
+            <span>Market cap top</span>
+            <strong id="marketCapMetric">...</strong>
+            <small id="marketCapHint">по выбранной валюте</small>
+          </article>
+          <article class="metric">
+            <span>Volume 24h</span>
+            <strong id="volumeMetric">...</strong>
+            <small>агрегировано по рынку</small>
+          </article>
+          <article class="metric">
+            <span>Портфель</span>
+            <strong id="portfolioValueMetric">...</strong>
+            <small id="portfolioPnlMetric">P/L: ...</small>
+          </article>
+          <article class="metric">
+            <span>Fear & Greed daily</span>
+            <strong id="fearGreedMetric">...</strong>
+            <small id="fearGreedHint">настроение рынка</small>
+          </article>
+          <article class="metric">
+            <span>BTC dominance</span>
+            <strong id="btcDominanceMetric">...</strong>
+            <small id="activeMarketsMetric">глобальный рынок</small>
+          </article>
+          <article class="metric">
+            <span>Закрытые позиции</span>
+            <strong id="closedPositionsMetric">0</strong>
+            <small>зафиксированных сделок</small>
+          </article>
+        </section>
+
+        <section class="insight-grid" aria-label="Market pulse">
+          <article class="panel pulse-card indicator-card fear-card">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">BYA market pulse</p>
+                <h2>Страх & Жадность ›</h2>
+              </div>
+              <strong id="fearGreedBadge" class="badge">...</strong>
+            </div>
+            <div class="gauge-wrap">
+              <div class="gauge">
+                <div id="fearGreedNeedle" class="gauge-needle"></div>
+                <strong id="fearGreedValue">...</strong>
+                <span id="fearGreedClassification">загрузка</span>
+              </div>
+              <p id="fearGreedUpdated" class="muted-line">Daily index · Alternative.me</p>
+            </div>
+          </article>
+
+          <article class="panel pulse-card indicator-card altseason-card">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">Altcoin season proxy</p>
+                <h2>Altcoin Season ›</h2>
+              </div>
+              <strong id="altseasonBadge" class="badge">...</strong>
+            </div>
+            <div class="season-wrap">
+              <div class="season-scale">
+                <i id="altseasonFill"></i>
+                <b id="altseasonNeedle"></b>
+              </div>
+              <div class="season-score">
+                <strong id="altseasonValue">...</strong>
+                <span id="altseasonLabel">загрузка</span>
+              </div>
+              <p id="altseasonHint" class="muted-line">Top-50 alts vs BTC · 30d proxy</p>
+            </div>
+          </article>
+
+          <article class="panel pulse-card dark-pulse-card movers-card">
+            <div class="panel-header compact">
+              <h2>Лидеры роста</h2>
+              <div class="mover-limit-tabs" aria-label="Охват рынка">
+                <button class="active" data-mover-limit="100" type="button">Top 100</button>
+                <button data-mover-limit="300" type="button">Top 300</button>
+                <button data-mover-limit="1000" type="button">Top 1000</button>
+                <button data-mover-limit="2000" type="button">Top 2000</button>
+              </div>
+            </div>
+            <div id="moversList" class="movers-list"></div>
+          </article>
+
+          <article class="panel pulse-card dark-pulse-card volume-accumulation-card">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">Top 20 liquidity</p>
+                <h2>Накопление объема</h2>
+              </div>
+            </div>
+            <div id="athList" class="portfolio-insights"></div>
+          </article>
+
+          <article class="panel pulse-card dark-pulse-card news-card">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">Investing.com RSS</p>
+                <h2>Крипто-новости</h2>
+              </div>
+              <div class="news-tabs" aria-label="Источник новостей">
+                <button class="active" data-news-source="market" type="button">Рынок</button>
+                <button data-news-source="bya" type="button">BYAcademy</button>
+              </div>
+            </div>
+            <div id="newsList" class="news-list"></div>
+          </article>
+        </section>
+
+        <section class="panel portfolio-page" id="portfolio-page">
+          <div class="portfolio-page-hero">
+            <div>
+              <p class="eyebrow">BYA portfolio</p>
+              <h2>Портфель</h2>
+              <small>Собери активы, смотри общий результат и раскрывай покупки без лишних показателей.</small>
+            </div>
+            <div class="portfolio-page-actions">
+              <button id="portfolioReportBtn" class="subtle-button report-button" type="button">Отчёт</button>
+              <button id="focusPortfolioFormBtn" class="primary-button add-coin-button" type="button">+ Добавить</button>
+              <div class="portfolio-book-switcher">
+                <select id="portfolioBookSelect" aria-label="Портфель"></select>
+                <div id="portfolioBookTabs" class="portfolio-book-tabs" aria-label="Вкладки портфелей"></div>
+                <button id="createPortfolioBookBtn" class="subtle-button" type="button">Новый портфель</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="portfolio-page-toolbar">
+            <label>
+              <span>Валюта портфолио</span>
+              <select id="portfolioCurrencySelect" aria-label="Валюта портфолио">
+                <option value="usd">USD</option>
+                <option value="eur">EUR</option>
+                <option value="rub">RUB</option>
+                <option value="gbp">GBP</option>
+              </select>
+            </label>
+            <div class="portfolio-wallet-tabs" aria-label="Кошельки портфеля">
+              <button class="active" data-portfolio-wallet="all" type="button">Общий</button>
+              <button data-portfolio-wallet="investment" type="button">Инвестиционный</button>
+              <button data-portfolio-wallet="speculative" type="button">Спекулятивный</button>
+            </div>
+            <small>Режим группировки объединяет несколько добавлений одной монеты.</small>
+          </div>
+
+          <div class="portfolio-stat-grid">
+            <article>
+              <span>Всего вложено</span>
+              <strong id="portfolioPageCost">...</strong>
+            </article>
+            <article>
+              <span>Зафиксировано</span>
+              <strong id="portfolioPageRealized">0.00</strong>
+            </article>
+            <article>
+              <span>С момента добавления</span>
+              <strong id="portfolioPagePnl">...</strong>
+              <small id="portfolioPagePnlPct">...</small>
+            </article>
+            <article>
+              <span>Сейчас в портфеле</span>
+              <strong id="portfolioPageHoldings">...</strong>
+            </article>
+            <article>
+              <span>Изменение за 24ч</span>
+              <strong id="portfolioPageDayPnl">...</strong>
+              <small id="portfolioPageDayPct">...</small>
+            </article>
+          </div>
+
+          <section id="portfolioReportPanel" class="portfolio-report-panel" hidden>
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">BYA report</p>
+                <h2>Отчёт по портфелю</h2>
+              </div>
+              <div class="report-period-tabs" aria-label="Период отчёта">
+                <button class="active" data-report-period="day" type="button">День</button>
+                <button data-report-period="week" type="button">Неделя</button>
+                <button data-report-period="month" type="button">Месяц</button>
+              </div>
+            </div>
+            <div id="portfolioReportContent" class="portfolio-report-content"></div>
+          </section>
+
+          <div class="portfolio-native-menu" aria-label="Портфельное меню">
+            <span>Сводка</span>
+            <span>График</span>
+            <span>Позиции</span>
+            <a href="#closed-positions">Закрытые позиции</a>
+          </div>
+
+          <div class="portfolio-workbench">
+            <aside class="portfolio-overview-card">
+              <span>Результат по портфелю</span>
+              <strong id="portfolioPageChange">...</strong>
+              <div id="portfolioPageOverview" class="portfolio-overview-list"></div>
+            </aside>
+          </div>
+
+          <div id="portfolioCoinModal" class="portfolio-coin-backdrop" hidden>
+            <section class="portfolio-coin-modal" role="dialog" aria-modal="true" aria-labelledby="portfolioCoinTitle">
+              <header>
+                <h2 id="portfolioCoinTitle">Добавить актив в портфолио</h2>
+                <button id="closePortfolioCoinBtn" type="button" aria-label="Закрыть">×</button>
+              </header>
+              <div class="portfolio-modal-tabs">
+                <button class="active" type="button">Покупка</button>
+                <button type="button">Заметка</button>
+              </div>
+              <form id="portfolioPageForm" class="portfolio-add-form">
+                <label class="coin-search-field">
+                  <span>Актив</span>
+                  <select id="portfolioPageCoinSelect" required></select>
+                  <small id="portfolioMarketPriceHint">Текущая цена: ...</small>
+                </label>
+                <label>
+                  <span>Количество монет</span>
+                  <input id="portfolioPageAmountInput" type="number" min="0" step="any" placeholder="0.5" />
+                </label>
+                <label>
+                  <span>Сумма покупки</span>
+                  <input id="portfolioPageTotalInput" type="number" min="0" step="any" placeholder="1000" />
+                </label>
+                <label>
+                  <span>Цена входа</span>
+                  <div class="price-input-row">
+                    <input id="portfolioPageCostInput" type="number" min="0" step="any" placeholder="42000" required />
+                    <button id="useMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
+                  </div>
+                </label>
+                <label>
+                  <span>Дата покупки</span>
+                  <input id="portfolioPageDateInput" type="date" />
+                </label>
+                <label>
+                  <span>Кошелёк</span>
+                  <select id="portfolioPageWalletSelect">
+                    <option value="general">Общий</option>
+                    <option value="investment">Инвестиционный</option>
+                    <option value="speculative">Спекулятивный</option>
+                  </select>
+                </label>
+                <label class="description-field">
+                  <span>Описание / кошелек</span>
+                  <textarea id="portfolioPageNoteInput" maxlength="500" placeholder="Binance spot, Ledger, Bybit..."></textarea>
+                  <small><b id="portfolioNoteCounter">0</b> / 500</small>
+                </label>
+                <div class="portfolio-calculation-preview">
+                  <span>Итог</span>
+                  <strong id="portfolioAddPreview">Укажи сумму или количество</strong>
+                  <small>Количество и сумма пересчитываются автоматически от цены входа.</small>
+                </div>
+                <button class="primary-button" type="submit">Добавить позицию</button>
+              </form>
+            </section>
+          </div>
+
+          <div class="portfolio-table-wrap">
+            <table class="portfolio-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Монета / дата</th>
+                  <th>Кошелёк</th>
+                  <th>Цена</th>
+                  <th>Цена покупки</th>
+                  <th>Результат</th>
+                  <th>Изм.</th>
+                  <th>TV</th>
+                </tr>
+              </thead>
+              <tbody id="portfolioPageTable"></tbody>
+            </table>
+            <div class="portfolio-table-actions">
+              <button id="portfolioTableAddBtn" class="primary-button add-coin-button" type="button">+ Добавить</button>
+            </div>
+          </div>
+
+          <div id="portfolioCloseModal" class="portfolio-coin-backdrop" hidden>
+            <section class="portfolio-coin-modal close-position-modal" role="dialog" aria-modal="true" aria-labelledby="portfolioCloseTitle">
+              <header>
+                <h2 id="portfolioCloseTitle">Закрыть позицию</h2>
+                <button id="closePortfolioCloseBtn" type="button" aria-label="Закрыть">×</button>
+              </header>
+              <form id="portfolioCloseForm" class="portfolio-close-form">
+                <div class="close-position-summary">
+                  <span id="closePositionAsset">...</span>
+                  <strong id="closePositionPrice">...</strong>
+                  <small id="closePositionAmount">...</small>
+                </div>
+                <label>
+                  <span>Количество</span>
+                  <input id="closePositionAmountInput" type="text" inputmode="decimal" value="" />
+                </label>
+                <label>
+                  <span>Доля закрытия</span>
+                  <input id="closePositionPercentInput" type="text" inputmode="decimal" value="100" />
+                </label>
+                <div class="close-percent-actions" aria-label="Быстрый выбор доли">
+                  <button type="button" data-close-percent="20">20%</button>
+                  <button type="button" data-close-percent="30">30%</button>
+                  <button type="button" data-close-percent="50">50%</button>
+                  <button type="button" data-close-percent="100">100%</button>
+                </div>
+                <div class="portfolio-calculation-preview">
+                  <span>Фиксация</span>
+                  <strong id="closePositionPreview">...</strong>
+                  <small id="closePositionHint">Остаток позиции сохранится в портфеле.</small>
+                </div>
+                <button class="primary-button" type="submit">Закрыть позицию</button>
+              </form>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel closed-positions-page" id="closed-positions">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">BYA portfolio history</p>
+              <h2>Закрытые позиции</h2>
+            </div>
+            <strong id="closedPositionsSummary" class="closed-summary">0 закрытых · зафиксировано 0,00 $</strong>
+          </div>
+          <div id="closedPositionsOverview" class="closed-overview"></div>
+          <div class="portfolio-table-wrap">
+            <table class="portfolio-table closed-positions-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Монета</th>
+                  <th>Цена входа</th>
+                  <th>Цена закрытия</th>
+                  <th>Зафиксировано</th>
+                  <th>Профит / минус</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody id="closedPositionsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel watchlist-page" id="watchlist-page">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">BYA watchlist</p>
+              <h2>Избранное</h2>
+            </div>
+            <strong id="watchlistPageSummary" class="watchlist-page-summary">0 активов</strong>
+          </div>
+          <div id="watchlistPageList" class="watchlist-page-list"></div>
+        </section>
+
+        <section class="panel legal-page" id="legal-page">
+          <div class="legal-hero">
+            <p class="eyebrow">BYA legal</p>
+            <h2>Юридическая информация</h2>
+            <p>
+              Документы описывают правила использования BYA MarketDesk, обработку данных, cookies и ограничения
+              финансовой аналитики. Оператор: ИП Минеев Андрей Владимирович, ИНН 027315905288, ОГРНИП 322028000175440.
+            </p>
+          </div>
+
+          <div class="legal-document-grid">
+            <article id="legal-terms" class="legal-document">
+              <span>Документ</span>
+              <h3>Пользовательское соглашение</h3>
+              <p>
+                Используя BYA MarketDesk, пользователь принимает правила сервиса. Терминал предоставляет рыночные данные,
+                инструменты watchlist, портфеля, отчётов и учебно-аналитические материалы BYAcademy.
+              </p>
+              <p>
+                Пользователь отвечает за достоверность данных аккаунта и за сохранность доступа. Запрещены попытки
+                нарушить работу сервиса, копировать интерфейс, обходить ограничения, использовать автоматизированный сбор
+                данных или выдавать материалы сервиса за индивидуальную инвестиционную рекомендацию.
+              </p>
+              <p>
+                Данные рынка поступают от внешних поставщиков и могут задерживаться, отличаться от биржевых котировок или
+                временно быть недоступными. Сервис может изменяться, обновляться или ограничиваться без предварительного
+                уведомления, если это нужно для безопасности и стабильности.
+              </p>
+            </article>
+
+            <article id="legal-offer" class="legal-document">
+              <span>Документ</span>
+              <h3>Публичная оферта</h3>
+              <p>
+                Публичная оферта BYAcademy применяется к доступу к сервисам BYA MarketDesk и образовательным
+                материалам BYAcademy. Акцептом считается регистрация, использование личного кабинета, оплата доступа
+                или иное действие, подтверждающее намерение пользоваться продуктами BYAcademy.
+              </p>
+              <p>
+                Состав услуг, стоимость, сроки доступа, порядок возврата и контакты поддержки должны быть указаны на
+                странице оплаты или в отдельном счёте. Если доступ бесплатный, сервис предоставляется в текущем виде без
+                гарантии непрерывности и без обещания финансового результата.
+              </p>
+              <p>
+                Официальная страница публичной оферты: https://investecosystem.ru/offer. Документ применяется совместно
+                с условиями конкретного продукта, тарифом, страницей оплаты и правилами доступа BYAcademy.
+              </p>
+            </article>
+
+            <article id="legal-privacy" class="legal-document">
+              <span>Документ</span>
+              <h3>Политика конфиденциальности и cookies</h3>
+              <p>
+                Сервис может обрабатывать имя, email, роль пользователя, данные портфеля, закрытые позиции, заметки,
+                избранные активы, технические данные браузера и cookie/localStorage для авторизации, сохранения настроек,
+                синхронизации аккаунта и улучшения работы продукта.
+              </p>
+              <p>
+                Данные портфеля используются для отображения расчётов внутри аккаунта. Они не являются поручением на
+                сделку и не передаются третьим лицам для рекламы без отдельного согласия. Пользователь может запросить
+                удаление или уточнение данных через контакт поддержки владельца сервиса.
+              </p>
+              <p>
+                Cookies и localStorage применяются для сохранения выбранной валюты, портфелей, статуса согласия,
+                пользовательского профиля и технических настроек. Продолжая пользоваться сервисом или нажимая «Принять»,
+                пользователь соглашается с таким использованием.
+              </p>
+            </article>
+
+            <article id="legal-risk" class="legal-document legal-risk">
+              <span>Важное предупреждение</span>
+              <h3>Не инвестиционная рекомендация</h3>
+              <p>
+                BYA MarketDesk является информационно-аналитическим и образовательным инструментом. Любые графики,
+                метрики, рейтинги, новости, сигналы и расчёты портфеля не являются индивидуальной инвестиционной
+                рекомендацией, финансовой консультацией или гарантией доходности.
+              </p>
+              <p>
+                Криптоактивы волатильны и могут привести к полной или частичной потере капитала. Пользователь принимает
+                решения самостоятельно и несёт ответственность за сделки, налоги, соблюдение законодательства своей
+                юрисдикции и выбор торговых площадок.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="workspace">
+          <div class="panel market-panel" id="market">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">BYA live market</p>
+                <h2>Сравнение активов</h2>
+              </div>
+              <div class="segmented" role="tablist" aria-label="Сортировка">
+                <button class="segment active" data-sort="market_cap_rank" type="button">Ранг</button>
+                <button class="segment" data-sort="price_change_percentage_24h" type="button">24ч</button>
+                <button class="segment" data-sort="total_volume" type="button">Объём</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>
+                      <button class="sort-header sort-header-left" data-sort="market_cap_rank" type="button">
+                        Монета / рейтинг <span aria-hidden="true">↕</span>
+                      </button>
+                    </th>
+                    <th>
+                      <button class="sort-header" data-sort="current_price" type="button">Цена <span aria-hidden="true">↕</span></button>
+                    </th>
+                    <th title="Реальный торговый объем за 24 часа из CoinGecko">
+                      <button class="sort-header" data-sort="total_volume" type="button">Прямой объем <span aria-hidden="true">↕</span></button>
+                    </th>
+                    <th title="Оценка полного оборота с учетом рыночной глубины">
+                      <button class="sort-header" data-sort="estimated_total_volume" type="button">Общий объем <span aria-hidden="true">↕</span></button>
+                    </th>
+                    <th>
+                      <button class="sort-header" data-sort="market_cap" type="button">Капитализация <span aria-hidden="true">↕</span></button>
+                    </th>
+                    <th>
+                      <button class="sort-header" data-sort="price_change_percentage_24h" type="button">% изм. <span aria-hidden="true">↕</span></button>
+                    </th>
+                    <th>7 дней</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody id="marketTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <aside class="portfolio-column">
+            <section class="panel" id="portfolio">
+              <div class="panel-header compact">
+                <div>
+                  <p class="eyebrow">BYA portfolio</p>
+                  <h2>Моя позиция</h2>
+                </div>
+                <button id="exportBtn" class="subtle-button" type="button">CSV</button>
+              </div>
+
+              <form id="portfolioForm" class="portfolio-form">
+                <label>
+                  <span>Монета</span>
+                  <div class="coin-picker">
+                    <input
+                      id="coinSearchInput"
+                      type="search"
+                      placeholder="BTC, Ethereum, Solana"
+                      autocomplete="off"
+                      aria-autocomplete="list"
+                      aria-expanded="false"
+                      aria-controls="coinSearchDropdown"
+                      required
+                    />
+                    <div id="coinSearchDropdown" class="coin-search-dropdown" role="listbox" hidden></div>
+                  </div>
+                </label>
+                <div class="form-grid">
+                  <label>
+                    <span>Количество</span>
+                    <input id="amountInput" type="number" min="0" step="any" placeholder="0.5" required />
+                  </label>
+                  <label>
+                    <span>Рыночная цена</span>
+                    <div class="price-input-row">
+                      <input id="costInput" type="number" min="0" step="any" placeholder="42000" required />
+                      <button id="useQuickMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
+                    </div>
+                  </label>
+                </div>
+                <button type="submit" class="primary-button">Добавить позицию</button>
+              </form>
+            </section>
+
+            <section class="panel watchlist-panel" id="watchlist">
+              <div class="panel-header compact">
+                <div>
+                  <p class="eyebrow">BYA watchlist</p>
+                  <h2>Избранное</h2>
+                </div>
+                <button id="clearWatchlistBtn" class="subtle-button" type="button">Очистить</button>
+              </div>
+              <div id="watchlistList" class="watchlist-list"></div>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <template id="coinRowTemplate">
+      <tr>
+        <td class="rank-cell"></td>
+        <td class="coin-cell">
+          <img alt="" />
+          <div>
+            <strong>
+              <span class="coin-name"></span>
+            </strong>
+            <span class="coin-symbol"></span>
+          </div>
+        </td>
+        <td class="price-cell"></td>
+        <td class="direct-volume-cell"></td>
+        <td class="total-volume-cell"></td>
+        <td class="cap-cell"></td>
+        <td class="change-24"></td>
+        <td class="spark-cell">
+          <canvas class="sparkline" width="130" height="42"></canvas>
+        </td>
+        <td class="action-cell">
+          <a class="tv-inline-link" target="_blank" rel="noopener noreferrer" title="Открыть спот в TradingView">TV</a>
+          <button class="watch-button" type="button" title="Добавить в избранное">☆</button>
+        </td>
+      </tr>
+    </template>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="authModal" class="modal-backdrop" hidden>
+      <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <button id="closeAuthBtn" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        <p class="eyebrow">BYAcademy account</p>
+        <h2 id="authTitle">Регистрация в BYA MarketDesk</h2>
+        <p class="auth-copy">
+          Создай профиль для портфеля или войди по email и паролю. Если пароль потеряется, доступ можно восстановить через письмо.
+        </p>
+        <form id="authForm" class="auth-form">
+          <label>
+            <span>Имя</span>
+            <input id="authNameInput" type="text" placeholder="Борис" autocomplete="name" required />
+          </label>
+          <label>
+            <span>Email</span>
+            <input id="authEmailInput" type="email" placeholder="name@example.com" autocomplete="email" required />
+          </label>
+          <label>
+            <span>Пароль</span>
+            <input id="authPasswordInput" type="password" placeholder="Минимум 8 символов" autocomplete="new-password" required minlength="8" />
+          </label>
+          <label id="authNewPasswordLabel" hidden>
+            <span>Новый пароль</span>
+            <input id="authNewPasswordInput" type="password" placeholder="Новый пароль" autocomplete="new-password" minlength="8" />
+          </label>
+          <label>
+            <span>Telegram</span>
+            <input id="authTelegramInput" type="text" placeholder="@username" autocomplete="off" />
+          </label>
+          <label>
+            <span>Роль</span>
+            <select id="authRoleInput">
+              <option value="Инвестор">Инвестор</option>
+              <option value="Партнер BYAcademy">Партнер BYAcademy</option>
+              <option value="Аналитик">Аналитик</option>
+            </select>
+          </label>
+          <label class="legal-consent">
+            <input id="authLegalConsent" type="checkbox" required />
+            <span>
+              Я принимаю <a href="#legal-terms">пользовательское соглашение</a>, <a href="#legal-offer">оферту</a> и
+              <a href="#legal-privacy">политику конфиденциальности</a>.
+            </span>
+          </label>
+          <div class="auth-actions">
+            <button class="primary-button" type="submit">Зарегистрироваться</button>
+            <button id="authLoginBtn" class="subtle-button" type="button">Войти</button>
+            <button id="authResetBtn" class="subtle-button" type="button">Забыли пароль?</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div id="cookieConsent" class="cookie-consent" hidden>
+      <div>
+        <strong>Cookies и данные аккаунта</strong>
+        <span>
+          Мы сохраняем настройки, портфели и технические данные в cookie/localStorage, чтобы сервис работал стабильно.
+          Подробнее: <a href="#legal-privacy">политика конфиденциальности</a>.
+        </span>
+      </div>
+      <button id="acceptCookieConsentBtn" class="primary-button" type="button">Принять</button>
+    </div>
+
+    <script src="app.js?v=20260525-portfolio-scroll-panel"></script>
+  </body>
+</html>

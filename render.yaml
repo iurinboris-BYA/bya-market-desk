@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: bya-market-desk
+    env: node
+    plan: free
+    buildCommand: ""
+    startCommand: "npm start"
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: bya-market-desk-data
+      mountPath: /var/data
+      sizeGB: 1

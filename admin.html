@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BYA Admin</title>
+    <link rel="stylesheet" href="styles.css?v=20260522-admin-users" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <header class="admin-hero">
+        <div>
+          <p class="eyebrow">BYAcademy admin</p>
+          <h1>Регистрации</h1>
+          <p>Панель показывает пользователей, которые прошли регистрацию в BYA MarketDesk.</p>
+        </div>
+        <a class="subtle-button" href="/">Открыть MarketDesk</a>
+      </header>
+
+      <section class="admin-metrics">
+        <article>
+          <span>Всего регистраций</span>
+          <strong id="adminTotalUsers">0</strong>
+        </article>
+        <article>
+          <span>За сегодня</span>
+          <strong id="adminTodayUsers">0</strong>
+        </article>
+        <article>
+          <span>Последняя регистрация</span>
+          <strong id="adminLastUser">...</strong>
+        </article>
+      </section>
+
+      <section class="panel admin-panel">
+        <div class="panel-header compact">
+          <div>
+            <p class="eyebrow">Users</p>
+            <h2>Зарегистрированные пользователи</h2>
+          </div>
+          <button id="adminRefreshBtn" class="subtle-button" type="button">Обновить</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Имя</th>
+                <th>Email</th>
+                <th>Telegram</th>
+                <th>Роль</th>
+                <th>Портфель</th>
+                <th>Регистрация</th>
+                <th>Обновлено</th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTable">
+              <tr>
+                <td colspan="7">Загрузка...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const elements = {
+        total: document.querySelector("#adminTotalUsers"),
+        today: document.querySelector("#adminTodayUsers"),
+        last: document.querySelector("#adminLastUser"),
+        table: document.querySelector("#adminUsersTable"),
+        refresh: document.querySelector("#adminRefreshBtn"),
+      };
+
+      elements.refresh.addEventListener("click", loadUsers);
+      loadUsers();
+
+      async function loadUsers() {
+        elements.table.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
+
+        try {
+          const response = await fetch("/api/admin/users", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          renderUsers(data.users || []);
+        } catch (error) {
+          elements.table.innerHTML = '<tr><td colspan="7">Не удалось загрузить регистрации.</td></tr>';
+        }
+      }
+
+      function renderUsers(users) {
+        elements.total.textContent = users.length;
+        elements.today.textContent = users.filter((user) => isToday(user.createdAt)).length;
+        elements.last.textContent = users[0] ? formatDate(users[0].createdAt) : "нет";
+
+        if (!users.length) {
+          elements.table.innerHTML = '<tr><td colspan="7">Регистраций пока нет.</td></tr>';
+          return;
+        }
+
+        elements.table.innerHTML = users
+          .map(
+            (user) => `
+              <tr>
+                <td>${escapeHtml(user.name)}</td>
+                <td>${escapeHtml(user.email)}</td>
+                <td>${renderTelegramLink(user.telegram)}</td>
+                <td>${escapeHtml(user.role)}</td>
+                <td>${renderPortfolioSummary(user)}</td>
+                <td>${formatDate(user.createdAt)}</td>
+                <td>${formatDate(user.updatedAt)}</td>
+              </tr>
+            `,
+          )
+          .join("");
+      }
+
+      function isToday(value) {
+        const date = new Date(value);
+        const now = new Date();
+        return date.toDateString() === now.toDateString();
+      }
+
+      function formatDate(value) {
+        if (!value) return "-";
+        return new Date(value).toLocaleString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function renderTelegramLink(value) {
+        const handle = normalizeTelegramHandle(value);
+        if (!handle) return "-";
+        const username = handle.slice(1);
+        return `<a class="admin-telegram-link" href="https://t.me/${encodeURIComponent(username)}" target="_blank" rel="noopener noreferrer">${escapeHtml(handle)}</a>`;
+      }
+
+      function normalizeTelegramHandle(value = "") {
+        const handle = String(value || "")
+          .trim()
+          .replace(/^https?:\/\/t\.me\//i, "")
+          .replace(/^t\.me\//i, "")
+          .replace(/^@+/, "")
+          .replace(/[^\w]/g, "")
+          .slice(0, 64);
+        return handle ? `@${handle}` : "";
+      }
+
+      function renderPortfolioSummary(user) {
+        const data = user.portfolioData || {};
+        const books = Array.isArray(data.portfolioBooks) && data.portfolioBooks.length
+          ? data.portfolioBooks
+          : [{
+              name: "Основной портфель",
+              portfolio: data.portfolio || [],
+              closedPositions: data.closedPositions || [],
+            }];
+        const totals = books.map(getBookPortfolioSummary);
+        const totalValue = totals.reduce((sum, item) => sum + item.value, 0);
+        const totalPnl = totals.reduce((sum, item) => sum + item.closedPnl, 0);
+        const totalAssets = totals.reduce((sum, item) => sum + item.assets, 0);
+        const details = totals
+          .map((item) => `${escapeHtml(item.name)}: ${item.assets} акт. · ${formatMoney(item.value)} · PnL ${formatMoney(item.closedPnl)}`)
+          .join("<br>");
+
+        return `
+          <details class="admin-portfolio-details">
+            <summary>${totalAssets} акт. · ${formatMoney(totalValue)} · PnL ${formatMoney(totalPnl)}</summary>
+            <small>${details || "Портфель пуст"}</small>
+          </details>
+        `;
+      }
+
+      function getBookPortfolioSummary(book) {
+        const positions = Array.isArray(book.portfolio) ? book.portfolio : [];
+        const closed = Array.isArray(book.closedPositions) ? book.closedPositions : [];
+        return {
+          name: book.name || "Портфель",
+          assets: positions.length,
+          value: positions.reduce((sum, position) => sum + (Number(position.cost) || 0) * (Number(position.amount) || 0), 0),
+          closedPnl: closed.reduce((sum, position) => sum + (Number(position.pnl) || 0), 0),
+        };
+      }
+
+      function formatMoney(value) {
+        return new Intl.NumberFormat("ru-RU", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: Math.abs(Number(value) || 0) >= 100 ? 0 : 2,
+        }).format(Number(value) || 0);
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+    </script>
+  </body>
+</html>
