@@ -79,7 +79,7 @@
         elements.table.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
 
         try {
-          const response = await fetch("/api/admin/users", { cache: "no-store" });
+          const response = await fetch(`/api/admin/users${window.location.search}`, { cache: "no-store" });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const data = await response.json();
           renderUsers(data.users || []);

@@ -11,6 +11,7 @@ const LIVE_RENDER_MS = 900;
 const DEFAULT_MARKET_LIMIT = 2000;
 const DEFAULT_MOVER_LIMIT = 100;
 const NEWS_VISIBLE_COUNT = 12;
+const ADMIN_EMAIL = "razor332437666@mail.ru";
 const ALTSEASON_SAMPLE_LIMIT = 100;
 const VOLUME_ACCUMULATION_LIMIT = 200;
 const VOLUME_ACCUMULATION_VISIBLE_COUNT = 20;
@@ -335,6 +336,7 @@ const elements = {
   exportBtn: document.querySelector("#exportBtn"),
   clearWatchlistBtn: document.querySelector("#clearWatchlistBtn"),
   authBtn: document.querySelector("#authBtn"),
+  adminTopbarLink: document.querySelector("#adminTopbarLink"),
   sidebarAuthBtn: document.querySelector("#sidebarAuthBtn"),
   authModal: document.querySelector("#authModal"),
   closeAuthBtn: document.querySelector("#closeAuthBtn"),
@@ -1176,6 +1178,8 @@ function renderAll() {
 }
 
 function renderUser() {
+  updateAdminLink();
+
   if (!state.user) {
     document.body.classList.add("guest-user");
     document.body.classList.remove("registered-user");
@@ -1198,6 +1202,22 @@ function renderUser() {
   elements.accountEmail.textContent = `${state.user.email} · ${state.user.role}`;
   elements.authBtn.textContent = "Выйти";
   elements.sidebarAuthBtn.textContent = "Редактировать профиль";
+}
+
+function updateAdminLink() {
+  if (!elements.adminTopbarLink) return;
+
+  const isAdmin = state.user?.email === ADMIN_EMAIL && Boolean(state.user?.authToken);
+  elements.adminTopbarLink.hidden = !isAdmin;
+  if (isAdmin) {
+    const params = new URLSearchParams({
+      email: state.user.email,
+      token: state.user.authToken,
+    });
+    elements.adminTopbarLink.href = `/admin.html?${params.toString()}`;
+  } else {
+    elements.adminTopbarLink.href = "/admin.html";
+  }
 }
 
 function updateRegisteredPortfolioActionLabel() {

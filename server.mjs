@@ -21,6 +21,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || "";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TELEGRAM_BOT_USERNAME = normalizeTelegramBotUsername(process.env.TELEGRAM_BOT_USERNAME || "");
 const TELEGRAM_LINK_TTL_MS = 1000 * 60 * 30;
+const ADMIN_EMAIL = "razor332437666@mail.ru";
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -98,6 +99,15 @@ createServer(async (request, response) => {
       if (request.method !== "GET") {
         response.writeHead(405, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
+
+      if (!(await isAdminRequestAuthorized(url))) {
+        response.writeHead(403, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+        });
+        response.end(JSON.stringify({ error: "Admin access denied" }));
         return;
       }
 
@@ -454,6 +464,33 @@ createServer(async (request, response) => {
       return;
     }
 
+    if (requestedPath === "/admin.html" && !(await isAdminRequestAuthorized(url))) {
+      response.writeHead(403, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(`<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin access denied</title>
+    <link rel="stylesheet" href="/styles.css?v=20260527-admin-table" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <section class="panel admin-panel" style="padding:24px;">
+        <p class="eyebrow">Admin</p>
+        <h1 style="margin:0 0 10px;">Доступ закрыт</h1>
+        <p style="color:var(--muted);line-height:1.5;">Админская панель доступна только аккаунту ${escapeHtml(ADMIN_EMAIL)} после входа в BYA MarketDesk.</p>
+        <a class="subtle-button" href="/">Открыть MarketDesk</a>
+      </section>
+    </main>
+  </body>
+</html>`);
+      return;
+    }
+
     const file = await readFile(filePath);
     response.writeHead(200, { "content-type": contentTypes[extname(filePath)] || "application/octet-stream" });
     response.end(file);
@@ -499,6 +536,12 @@ function getRequestBaseUrl(request) {
   const proto = forwardedProto || (request.socket?.encrypted ? "https" : "http");
   const host = String(request.headers["x-forwarded-host"] || request.headers.host || "").split(",")[0].trim();
   return host ? `${proto}://${host}`.replace(/\/$/, "") : PUBLIC_BASE_URL;
+}
+
+async function isAdminRequestAuthorized(url) {
+  const email = normalizeEmail(url.searchParams.get("email"));
+  const token = String(url.searchParams.get("token") || "");
+  return email === ADMIN_EMAIL && (await verifySessionToken(email, token));
 }
 
 function isStrongEnoughPassword(password = "") {
