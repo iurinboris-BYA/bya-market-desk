@@ -454,7 +454,7 @@ function bindEvents() {
     renderCoinSearchDropdown();
   });
   elements.coinSearchInput.addEventListener("keydown", handleCoinSearchKeydown);
-  document.addEventListener("click", handleExternalLinkClick);
+  document.addEventListener("click", handleExternalLinkClick, { capture: true });
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".coin-picker")) {
       hideCoinSearchDropdown();
@@ -678,13 +678,15 @@ function togglePasswordVisibility(event) {
 }
 
 function handleExternalLinkClick(event) {
-  const link = event.target.closest?.('a[href^="http"]');
+  const link = event.target.closest?.("a[href]");
   if (!link) return;
 
-  const href = link.href;
-  if (!href) return;
+  const href = link.href || "";
+  const url = new URL(href, window.location.href);
+  if (!href || !["http:", "https:"].includes(url.protocol) || url.origin === window.location.origin) return;
 
   event.preventDefault();
+  event.stopImmediatePropagation();
   openExternalLink(href);
 }
 
@@ -707,7 +709,7 @@ function openExternalLink(href) {
 
   const externalWindow = window.open(href, "_blank", "noopener,noreferrer");
   if (!externalWindow) {
-    window.location.assign(href);
+    showToast("Открой ссылку в новой вкладке", "Браузер заблокировал всплывающее окно, текущая страница MarketDesk оставлена открытой.", -1);
   }
 }
 

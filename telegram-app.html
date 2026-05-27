@@ -496,8 +496,9 @@
         const link = event.target.closest?.('a[href^="http"]');
         if (!link) return;
         event.preventDefault();
+        event.stopImmediatePropagation();
         openExternal(link.href);
-      });
+      }, { capture: true });
 
       initTelegram();
       loadMarket();
@@ -708,8 +709,7 @@
         const app = window.Telegram?.WebApp;
         if (app?.openTelegramLink && href.includes("t.me/")) return app.openTelegramLink(href);
         if (app?.openLink) return app.openLink(href);
-        const opened = window.open(href, "_blank", "noopener,noreferrer");
-        if (!opened) location.assign(href);
+        window.open(href, "_blank", "noopener,noreferrer");
       }
 
       function findCoin(id) {
