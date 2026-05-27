@@ -18,6 +18,9 @@ const RESET_TOKEN_TTL_MS = 1000 * 60 * 30;
 const PASSWORD_MIN_LENGTH = 8;
 const PRIVATE_STATIC_PATHS = new Set(["/server.mjs", "/package.json", "/render.yaml", "/.gitignore"]);
 const EMAIL_FROM = process.env.EMAIL_FROM || "";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const TELEGRAM_BOT_USERNAME = normalizeTelegramBotUsername(process.env.TELEGRAM_BOT_USERNAME || "");
+const TELEGRAM_LINK_TTL_MS = 1000 * 60 * 30;
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -54,6 +57,40 @@ createServer(async (request, response) => {
           publicBaseUrl: getRequestBaseUrl(request),
         }),
       );
+      return;
+    }
+
+    if (url.pathname === "/api/telegram/status") {
+      response.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(
+        JSON.stringify({
+          ok: true,
+          configured: isTelegramConfigured(),
+          botUsername: TELEGRAM_BOT_USERNAME,
+        }),
+      );
+      return;
+    }
+
+    if (url.pathname === "/api/telegram/webhook") {
+      if (request.method !== "POST") {
+        response.writeHead(405, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
+
+      const payload = await readJsonBody(request);
+      await handleTelegramWebhook(payload).catch((error) => {
+        console.warn("Telegram webhook failed:", error.message || error);
+      });
+      response.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(JSON.stringify({ ok: true }));
       return;
     }
 
@@ -157,6 +194,32 @@ createServer(async (request, response) => {
       return;
     }
 
+    if (url.pathname === "/api/telegram/link/start") {
+      if (request.method !== "POST") {
+        response.writeHead(405, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: "Method not allowed" }));
+        return;
+      }
+
+      const payload = await readJsonBody(request);
+      const email = normalizeEmail(payload.email);
+      const authToken = String(payload.token || "");
+      if (!email || !(await verifySessionToken(email, authToken))) {
+        response.writeHead(401, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: "Unauthorized" }));
+        return;
+      }
+
+      const code = await createTelegramLinkCode(email);
+      const linkUrl = TELEGRAM_BOT_USERNAME ? `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${encodeURIComponent(code)}` : "";
+      response.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(JSON.stringify({ ok: true, configured: isTelegramConfigured(), botUsername: TELEGRAM_BOT_USERNAME, linkUrl, code }));
+      return;
+    }
+
     if (url.pathname === "/api/password-reset/request") {
       if (request.method !== "POST") {
         response.writeHead(405, { "content-type": "application/json; charset=utf-8" });
@@ -171,10 +234,20 @@ createServer(async (request, response) => {
         if (user) {
           const token = await createPasswordResetToken(email);
           const resetLink = `${getRequestBaseUrl(request)}/?resetToken=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
-          await sendPasswordResetEmail(email, resetLink).catch((error) => {
-            console.warn("Password reset email fallback:", error.message || error);
-            console.log(`Password reset link for ${email}: ${resetLink}`);
-          });
+          if (user.telegramChatId) {
+            await sendPasswordResetTelegram(user, resetLink).catch(async (error) => {
+              console.warn("Password reset telegram fallback:", error.message || error);
+              await sendPasswordResetEmail(email, resetLink).catch((emailError) => {
+                console.warn("Password reset email fallback:", emailError.message || emailError);
+                console.log(`Password reset link for ${email}: ${resetLink}`);
+              });
+            });
+          } else {
+            await sendPasswordResetEmail(email, resetLink).catch((error) => {
+              console.warn("Password reset email fallback:", error.message || error);
+              console.log(`Password reset link for ${email}: ${resetLink}`);
+            });
+          }
         }
       }
 
@@ -456,8 +529,11 @@ function hashToken(token) {
 }
 
 function toPublicUser(user = {}) {
-  const { passwordHash, sessions, passwordReset, portfolioData, ...publicUser } = user;
-  return publicUser;
+  const { passwordHash, sessions, passwordReset, portfolioData, telegramChatId, telegramLink, ...publicUser } = user;
+  return {
+    ...publicUser,
+    telegramLinked: Boolean(telegramChatId),
+  };
 }
 
 function normalizeTelegramHandle(value = "") {
@@ -469,6 +545,16 @@ function normalizeTelegramHandle(value = "") {
     .replace(/[^\w]/g, "")
     .slice(0, 64);
   return handle ? `@${handle}` : "";
+}
+
+function normalizeTelegramBotUsername(value = "") {
+  return String(value || "")
+    .trim()
+    .replace(/^https?:\/\/t\.me\//i, "")
+    .replace(/^t\.me\//i, "")
+    .replace(/^@+/, "")
+    .replace(/[^\w]/g, "")
+    .slice(0, 64);
 }
 
 function normalizePortfolioData(payload = {}) {
@@ -701,6 +787,121 @@ async function updateUserPassword(email, password) {
   };
   await writeUsers(users);
   return users[index];
+}
+
+async function createTelegramLinkCode(email) {
+  const users = await readUsers();
+  const index = users.findIndex((item) => item.email === email);
+  if (index < 0) return "";
+
+  const code = crypto.randomBytes(12).toString("hex");
+  const now = Date.now();
+  users[index] = {
+    ...users[index],
+    telegramLink: {
+      codeHash: hashToken(code),
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + TELEGRAM_LINK_TTL_MS).toISOString(),
+    },
+    updatedAt: new Date(now).toISOString(),
+  };
+  await writeUsers(users);
+  return code;
+}
+
+async function consumeTelegramLinkCode(code, telegramUser = {}) {
+  if (!code) return null;
+
+  const users = await readUsers();
+  const now = Date.now();
+  const codeHash = hashToken(code);
+  const index = users.findIndex((user) => {
+    const link = user.telegramLink || {};
+    return link.codeHash === codeHash && new Date(link.expiresAt || 0).getTime() > now;
+  });
+  if (index < 0) return null;
+
+  const telegramUsername = normalizeTelegramHandle(telegramUser.username || "");
+  users[index] = {
+    ...users[index],
+    telegram: telegramUsername || users[index].telegram || "",
+    telegramChatId: String(telegramUser.id || ""),
+    telegramFirstName: String(telegramUser.first_name || "").slice(0, 80),
+    telegramLinkedAt: new Date(now).toISOString(),
+    telegramLink: null,
+    updatedAt: new Date(now).toISOString(),
+  };
+  await writeUsers(users);
+  return users[index];
+}
+
+async function handleTelegramWebhook(update = {}) {
+  const message = update.message || update.edited_message;
+  const text = String(message?.text || "").trim();
+  const from = message?.from || {};
+  const chatId = message?.chat?.id || from.id;
+  if (!chatId || !text) return;
+
+  const [, command = "", payload = ""] = text.match(/^\/(\w+)(?:\s+(.+))?/) || [];
+  if (command.toLowerCase() === "start" && payload) {
+    const user = await consumeTelegramLinkCode(String(payload).trim(), from);
+    if (user) {
+      await sendTelegramMessage(chatId, [
+        "Telegram привязан к BYA MarketDesk.",
+        "",
+        "Теперь ссылки восстановления пароля будут приходить сюда бесплатно.",
+      ].join("\n"));
+      return;
+    }
+
+    await sendTelegramMessage(chatId, "Код привязки не найден или уже истек. Вернитесь в BYA MarketDesk и запросите новую ссылку Telegram.");
+    return;
+  }
+
+  await sendTelegramMessage(chatId, "Откройте BYA MarketDesk и нажмите привязку Telegram в аккаунте. Бот нужен для восстановления пароля.");
+}
+
+async function sendPasswordResetTelegram(user = {}, resetLink) {
+  if (!user.telegramChatId) return { sent: false, reason: "telegram_not_linked" };
+
+  return sendTelegramMessage(user.telegramChatId, [
+    "BYA MarketDesk: восстановление пароля",
+    "",
+    "Вы запросили сброс пароля. Ссылка действует 30 минут:",
+    resetLink,
+    "",
+    "Если это были не вы, просто проигнорируйте сообщение.",
+  ].join("\n"));
+}
+
+function isTelegramConfigured() {
+  return Boolean(TELEGRAM_BOT_TOKEN);
+}
+
+async function sendTelegramMessage(chatId, text) {
+  if (!isTelegramConfigured()) {
+    console.log(`Telegram fallback for ${chatId}: ${text}`);
+    return { sent: false, reason: "telegram_not_configured" };
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    throw new Error(`Telegram failed: ${response.status}${details ? ` ${details.slice(0, 240)}` : ""}`);
+  }
+
+  return { sent: true };
 }
 
 async function sendPasswordResetEmail(email, resetLink) {

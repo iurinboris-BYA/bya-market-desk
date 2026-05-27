@@ -1991,10 +1991,17 @@ async function saveUserProfile(event) {
     renderUser();
     return;
   }
+  if (registration.user) {
+    state.user = {
+      ...state.user,
+      ...registration.user,
+    };
+  }
   if (registration.authToken) {
     state.user.authToken = registration.authToken;
   }
   localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(state.user));
+  await offerTelegramLink();
   await loadAccountPortfolioData();
   closeAuthModal();
   renderUser();
@@ -2035,6 +2042,7 @@ async function loginUserProfile() {
       authToken: data.authToken || "",
     };
     localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(state.user));
+    await offerTelegramLink();
     await loadAccountPortfolioData();
     closeAuthModal();
     renderUser();
@@ -2087,6 +2095,34 @@ async function requestPasswordReset() {
     showToast("Проверь почту", "Если аккаунт есть, письмо со ссылкой восстановления уже отправлено.", 1);
   } catch (error) {
     showToast("Не удалось отправить письмо", "Попробуй ещё раз или напиши администратору.", -1);
+  }
+}
+
+async function offerTelegramLink() {
+  if (!state.user?.email || !state.user?.authToken || !state.user?.telegram || state.user?.telegramLinked) return;
+
+  try {
+    const response = await fetch("/api/telegram/link/start", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        email: state.user.email,
+        token: state.user.authToken,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) return;
+
+    if (data.linkUrl) {
+      window.open(data.linkUrl, "_blank", "noopener,noreferrer");
+      showToast("Привяжи Telegram", "В открывшемся боте нажми Start. После этого сброс пароля будет приходить в Telegram.", 1);
+    } else if (data.code) {
+      showToast("Telegram-бот почти готов", `Отправь боту команду /start ${data.code}`, 1);
+    }
+  } catch (error) {
+    console.warn("Telegram link start failed", error);
   }
 }
 
