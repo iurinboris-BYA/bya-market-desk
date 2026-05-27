@@ -266,6 +266,7 @@ const elements = {
   useQuickMarketPriceBtn: document.querySelector("#useQuickMarketPriceBtn"),
   portfolioList: document.querySelector("#portfolioList"),
   portfolioPageForm: document.querySelector("#portfolioPageForm"),
+  portfolioPageCoinSearchInput: document.querySelector("#portfolioPageCoinSearchInput"),
   portfolioPageCoinSelect: document.querySelector("#portfolioPageCoinSelect"),
   portfolioPageAmountInput: document.querySelector("#portfolioPageAmountInput"),
   portfolioPageTotalInput: document.querySelector("#portfolioPageTotalInput"),
@@ -518,8 +519,21 @@ function bindEvents() {
   });
 
   elements.portfolioPageCoinSelect.addEventListener("change", () => {
+    syncPortfolioCoinSearchToSelection();
     useCurrentMarketPrice();
     updatePortfolioMarketPriceHint();
+  });
+  elements.portfolioPageCoinSearchInput?.addEventListener("input", handlePortfolioCoinSearchInput);
+  elements.portfolioPageCoinSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      elements.portfolioPageCoinSearchInput.value = "";
+      renderPortfolioPageCoinOptions("");
+      syncPortfolioCoinSearchToSelection();
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      elements.portfolioPageAmountInput.focus();
+    }
   });
   elements.portfolioPageAmountInput.addEventListener("input", () => recalculatePortfolioAmount("amount"));
   elements.portfolioPageTotalInput.addEventListener("input", () => recalculatePortfolioAmount("total"));
@@ -1472,6 +1486,10 @@ function openPortfolioCoinModal() {
   elements.portfolioPageTotalInput.value = "";
   elements.portfolioPageCostInput.value = "";
   elements.portfolioPageNoteInput.value = "";
+  if (elements.portfolioPageCoinSearchInput) {
+    elements.portfolioPageCoinSearchInput.value = "";
+    renderPortfolioPageCoinOptions("");
+  }
   elements.portfolioPageDateInput.valueAsDate = new Date();
   if (elements.portfolioPageWalletSelect) {
     elements.portfolioPageWalletSelect.value =
@@ -1482,7 +1500,7 @@ function openPortfolioCoinModal() {
   updatePortfolioMarketPriceHint();
   updatePortfolioNoteCounter();
   recalculatePortfolioAmount("open");
-  elements.portfolioPageCoinSelect.focus();
+  elements.portfolioPageCoinSearchInput?.focus();
 }
 
 function closePortfolioCoinModal() {
@@ -2407,23 +2425,62 @@ function setChangeCell(row, selector, value) {
 
 function renderCoinSelect() {
   const currentSearchValue = elements.coinSearchInput.value;
-  const currentPageValue = elements.portfolioPageCoinSelect.value;
-  const options = state.coins
-    .map((coin) => `<option value="${coin.id}">${coin.name} (${coin.symbol.toUpperCase()})</option>`)
-    .join("");
-  elements.portfolioPageCoinSelect.innerHTML = options;
+  const currentPageSearchValue = elements.portfolioPageCoinSearchInput?.value || "";
+  renderPortfolioPageCoinOptions(currentPageSearchValue);
 
   if (currentSearchValue) {
     elements.coinSearchInput.value = currentSearchValue;
   }
 
-  if (currentPageValue && state.coins.some((coin) => coin.id === currentPageValue)) {
-    elements.portfolioPageCoinSelect.value = currentPageValue;
-  }
-
   updatePortfolioMarketPriceHint();
   recalculatePortfolioAmount("coin");
   renderCoinSearchDropdown(false);
+}
+
+function getPortfolioPageCoinLabel(coin) {
+  return `${coin.name} (${coin.symbol.toUpperCase()})`;
+}
+
+function getPortfolioPageCoinMatches(query = "") {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return state.coins;
+  }
+
+  return state.coins.filter((coin) => {
+    const symbol = coin.symbol.toLowerCase();
+    const name = coin.name.toLowerCase();
+    const id = coin.id.toLowerCase();
+    return symbol.includes(normalizedQuery) || name.includes(normalizedQuery) || id.includes(normalizedQuery);
+  });
+}
+
+function renderPortfolioPageCoinOptions(query = "") {
+  const currentPageValue = elements.portfolioPageCoinSelect.value;
+  const matches = getPortfolioPageCoinMatches(query);
+  const selectedValue = matches.some((coin) => coin.id === currentPageValue) ? currentPageValue : matches[0]?.id || "";
+
+  elements.portfolioPageCoinSelect.innerHTML = matches.length
+    ? matches.map((coin) => `<option value="${coin.id}">${getPortfolioPageCoinLabel(coin)}</option>`).join("")
+    : `<option value="">Ничего не найдено</option>`;
+  elements.portfolioPageCoinSelect.value = selectedValue;
+}
+
+function syncPortfolioCoinSearchToSelection() {
+  const input = elements.portfolioPageCoinSearchInput;
+  if (!input) return;
+
+  const selectedCoin = findCoin(elements.portfolioPageCoinSelect.value);
+  if (selectedCoin) {
+    input.value = getPortfolioPageCoinLabel(selectedCoin);
+  }
+}
+
+function handlePortfolioCoinSearchInput() {
+  renderPortfolioPageCoinOptions(elements.portfolioPageCoinSearchInput.value);
+  useCurrentMarketPrice();
+  updatePortfolioMarketPriceHint();
 }
 
 function renderCoinSearchDropdown(shouldOpen = true) {

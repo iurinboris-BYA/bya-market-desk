@@ -2496,6 +2496,19 @@ body.guest-user .portfolio-page-hero .portfolio-book-switcher {
   width: 100%;
 }
 
+.portfolio-coin-modal .coin-search-field {
+  gap: 8px;
+}
+
+#portfolioPageCoinSearchInput {
+  border-color: rgba(21, 153, 134, 0.35);
+  background: #ffffff;
+}
+
+#portfolioPageCoinSelect {
+  min-height: 44px;
+}
+
 .portfolio-add-form textarea {
   min-height: 82px;
   padding: 12px;
