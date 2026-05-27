@@ -647,6 +647,9 @@ function bindEvents() {
   elements.authForm.addEventListener("submit", saveUserProfile);
   elements.authLoginBtn?.addEventListener("click", loginUserProfile);
   elements.authResetBtn?.addEventListener("click", requestPasswordReset);
+  document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+    button.addEventListener("click", togglePasswordVisibility);
+  });
   elements.acceptCookieConsentBtn?.addEventListener("click", acceptCookieConsent);
   elements.acceptCookieConsentBtn?.addEventListener("pointerup", acceptCookieConsent);
   elements.acceptCookieConsentBtn?.addEventListener("touchend", acceptCookieConsent, { passive: true });
@@ -660,6 +663,18 @@ function handleCookieConsentAction(event) {
   const button = event.target?.closest?.("#acceptCookieConsentBtn");
   if (!button) return;
   acceptCookieConsent();
+}
+
+function togglePasswordVisibility(event) {
+  const button = event.currentTarget;
+  const input = document.querySelector(`#${button.dataset.passwordToggle}`);
+  if (!input) return;
+
+  const shouldShow = input.type === "password";
+  input.type = shouldShow ? "text" : "password";
+  button.setAttribute("aria-pressed", String(shouldShow));
+  button.setAttribute("aria-label", shouldShow ? "Скрыть пароль" : "Показать пароль");
+  input.focus();
 }
 
 function handleExternalLinkClick(event) {

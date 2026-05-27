@@ -708,11 +708,27 @@
           </label>
           <label>
             <span>Пароль</span>
-            <input id="authPasswordInput" type="password" placeholder="Минимум 8 символов" autocomplete="new-password" required minlength="8" />
+            <div class="password-field">
+              <input id="authPasswordInput" type="password" placeholder="Минимум 8 символов" autocomplete="new-password" required minlength="8" />
+              <button class="password-toggle" type="button" data-password-toggle="authPasswordInput" aria-label="Показать пароль" aria-pressed="false">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M2.1 12s3.6-6 9.9-6 9.9 6 9.9 6-3.6 6-9.9 6-9.9-6-9.9-6Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
           </label>
           <label id="authNewPasswordLabel" hidden>
             <span>Новый пароль</span>
-            <input id="authNewPasswordInput" type="password" placeholder="Новый пароль" autocomplete="new-password" minlength="8" />
+            <div class="password-field">
+              <input id="authNewPasswordInput" type="password" placeholder="Новый пароль" autocomplete="new-password" minlength="8" />
+              <button class="password-toggle" type="button" data-password-toggle="authNewPasswordInput" aria-label="Показать пароль" aria-pressed="false">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M2.1 12s3.6-6 9.9-6 9.9 6 9.9 6-3.6 6-9.9 6-9.9-6-9.9-6Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
           </label>
           <label>
             <span>Telegram</span>
