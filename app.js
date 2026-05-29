@@ -435,7 +435,7 @@ function init() {
   renderUser();
   loadAccountPortfolioData();
   renderSortHeaders();
-  if (!hydrateMarketSnapshot() && !hydrateInstantPreviewMarket()) {
+  if (!hydrateInstantPreviewMarket()) {
     renderLoadingRows();
   }
   renderClosedPositions();
