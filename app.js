@@ -2507,8 +2507,8 @@ async function registerUserOnServer(user, password) {
     });
     const data = await response.json();
     if (!response.ok || !data.ok) {
-      const message = response.status === 409 ? "Такой email уже зарегистрирован. Войди с паролем или восстанови доступ." : "Проверь данные и попробуй ещё раз.";
-      showToast("Регистрация не прошла", message, -1);
+      const details = getRegistrationErrorDetails(response.status, data?.error);
+      showToast(details.title, details.message, -1);
       return { ok: false };
     }
     return data;
@@ -2517,6 +2517,43 @@ async function registerUserOnServer(user, password) {
     showToast("Профиль сохранён локально", "Сервер регистрации временно недоступен.", -1);
     return { ok: false };
   }
+}
+
+function getRegistrationErrorDetails(status, errorMessage = "") {
+  const normalized = String(errorMessage || "").toLowerCase();
+
+  if (status === 409 || normalized.includes("already exists")) {
+    return {
+      title: "Email уже зарегистрирован",
+      message: "Войди с этим email и паролем или нажми «Сброс через Telegram», если пароль потерян.",
+    };
+  }
+
+  if (normalized.includes("name and email")) {
+    return {
+      title: "Не хватает данных",
+      message: "Заполни имя и корректный email для регистрации.",
+    };
+  }
+
+  if (normalized.includes("password must") || normalized.includes("password")) {
+    return {
+      title: "Пароль слишком короткий",
+      message: "Пароль должен быть не короче 8 символов.",
+    };
+  }
+
+  if (status === 405) {
+    return {
+      title: "Регистрация временно недоступна",
+      message: "Сервер отклонил метод запроса. Обнови страницу и попробуй ещё раз.",
+    };
+  }
+
+  return {
+    title: "Регистрация не прошла",
+    message: errorMessage ? `Причина: ${errorMessage}` : "Сервер не принял данные. Проверь поля и попробуй ещё раз.",
+  };
 }
 
 async function requestPasswordReset() {
