@@ -1627,6 +1627,7 @@ function setPasswordResetMode(enabled) {
   elements.authNewPasswordInput.required = enabled;
   elements.authPasswordInput.required = !enabled;
   elements.authNameInput.required = !enabled && !isLoginMode;
+  elements.authTelegramInput.required = !enabled && !isLoginMode;
   elements.authLegalConsent.required = !enabled && !isLoginMode;
   elements.authNameInput.closest("label").hidden = enabled || isLoginMode;
   elements.authPasswordInput.closest("label").hidden = enabled;
@@ -2413,16 +2414,23 @@ async function saveUserProfile(event) {
   }
 
   const password = elements.authPasswordInput.value;
+  const telegram = normalizeTelegramHandle(elements.authTelegramInput?.value || "");
   if (password.length < 8) {
     elements.authPasswordInput.focus();
     showToast("Пароль слишком короткий", "Минимум 8 символов.", -1);
     return;
   }
 
+  if (!telegram) {
+    elements.authTelegramInput.focus();
+    showToast("Укажи Telegram", "Он нужен для восстановления доступа через Telegram-бота.", -1);
+    return;
+  }
+
   state.user = {
     name: elements.authNameInput.value.trim(),
     email: elements.authEmailInput.value.trim().toLowerCase(),
-    telegram: normalizeTelegramHandle(elements.authTelegramInput?.value || ""),
+    telegram,
     role: elements.authRoleInput.value,
     createdAt: state.user?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -2533,6 +2541,13 @@ function getRegistrationErrorDetails(status, errorMessage = "") {
     return {
       title: "Не хватает данных",
       message: "Заполни имя и корректный email для регистрации.",
+    };
+  }
+
+  if (normalized.includes("telegram")) {
+    return {
+      title: "Telegram обязателен",
+      message: "Укажи Telegram username, чтобы потом можно было восстановить доступ через бота.",
     };
   }
 

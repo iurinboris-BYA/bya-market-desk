@@ -138,6 +138,12 @@ createServer(async (request, response) => {
         return;
       }
 
+      if (!user.telegram) {
+        response.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: "Telegram is required for password recovery" }));
+        return;
+      }
+
       if (!isStrongEnoughPassword(password)) {
         response.writeHead(400, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` }));
