@@ -120,7 +120,7 @@ const fallbackCoins = [
     symbol: "btc",
     name: "Bitcoin",
     image: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
-    current_price: 0,
+    current_price: 104500,
     high_24h: 106100,
     low_24h: 101900,
     market_cap: 2070000000000,
@@ -140,7 +140,7 @@ const fallbackCoins = [
     symbol: "eth",
     name: "Ethereum",
     image: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
-    current_price: 0,
+    current_price: 3480,
     high_24h: 3540,
     low_24h: 3390,
     market_cap: 420000000000,
@@ -160,7 +160,7 @@ const fallbackCoins = [
     symbol: "sol",
     name: "Solana",
     image: "https://assets.coingecko.com/coins/images/4128/large/solana.png",
-    current_price: 0,
+    current_price: 168,
     high_24h: 172,
     low_24h: 158,
     market_cap: 76000000000,
@@ -180,7 +180,7 @@ const fallbackCoins = [
     symbol: "xrp",
     name: "XRP",
     image: "https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png",
-    current_price: 0,
+    current_price: 0.61,
     high_24h: 0.63,
     low_24h: 0.59,
     market_cap: 34500000000,
@@ -266,6 +266,7 @@ const state = {
   isApplyingAccountPortfolio: false,
   isSyncingAccountPortfolio: false,
   isLoadingMarketDepth: false,
+  isPreviewMarket: false,
   passwordReset: null,
   nextRefreshAt: null,
   lastUpdated: null,
@@ -434,7 +435,7 @@ function init() {
   renderUser();
   loadAccountPortfolioData();
   renderSortHeaders();
-  if (!hydrateMarketSnapshot()) {
+  if (!hydrateMarketSnapshot() && !hydrateInstantPreviewMarket()) {
     renderLoadingRows();
   }
   renderClosedPositions();
@@ -1002,13 +1003,17 @@ async function loadDashboard(options = {}) {
   try {
     state.coins = await fetchMarket({ loadDepth: !options.silent });
     state.usingFallback = false;
+    state.isPreviewMarket = false;
     saveMarketSnapshot();
   } catch (error) {
     console.warn(error);
     if (!state.coins.length) {
       state.coins = getFallbackCoinsWithoutMarketPrices();
+      state.usingFallback = true;
+      state.isPreviewMarket = false;
+    } else {
+      state.usingFallback = false;
     }
-    state.usingFallback = true;
   }
 
   updateAltseasonFromTopSample(state.coins);
@@ -1059,6 +1064,37 @@ async function fetchMarket(options = {}) {
   return firstPage.slice(0, state.marketLimit);
 }
 
+function hydrateInstantPreviewMarket() {
+  if (state.coins.length) return false;
+
+  state.coins = fallbackCoins.map((coin) => ({
+    ...coin,
+    sparkline_in_7d: {
+      price: buildFallbackSparkline(coin.current_price, coin.price_change_percentage_7d_in_currency, coin.id),
+    },
+  }));
+  state.global = {
+    markets: 1210,
+    active_cryptocurrencies: 17350,
+    market_cap_percentage: { btc: 61.7 },
+    market_cap_change_percentage_24h_usd: 1.2,
+  };
+  state.fearGreed = {
+    value: "52",
+    value_classification: "Neutral",
+    timestamp: String(Math.floor(Date.now() / 1000)),
+  };
+  state.usingFallback = false;
+  state.isPreviewMarket = true;
+  state.lastUpdated = new Date();
+  state.nextRefreshAt = Date.now() + MARKET_REFRESH_MS;
+  updateAltseasonFromTopSample(state.coins);
+  applyFilters();
+  renderAll();
+  setStatus("Быстрый старт: показываю ориентиры, live обновляется...");
+  return true;
+}
+
 async function loadRemainingMarketDepth(firstPage = []) {
   if (state.isLoadingMarketDepth) return;
   state.isLoadingMarketDepth = true;
@@ -1087,6 +1123,7 @@ async function loadRemainingMarketDepth(firstPage = []) {
 
     state.coins = marketCoins;
     state.usingFallback = false;
+    state.isPreviewMarket = false;
     state.lastUpdated = new Date();
     applyFilters();
     repairFallbackPortfolioEntryPrices();
@@ -1117,6 +1154,7 @@ function hydrateMarketSnapshot() {
   state.global = snapshot.global || null;
   state.fearGreed = snapshot.fearGreed || null;
   state.usingFallback = false;
+  state.isPreviewMarket = false;
   state.lastUpdated = new Date(updatedAt);
   state.nextRefreshAt = Date.now() + MARKET_REFRESH_MS;
   updateAltseasonFromTopSample(state.coins);
@@ -1128,7 +1166,7 @@ function hydrateMarketSnapshot() {
 }
 
 function saveMarketSnapshot() {
-  if (state.usingFallback || !state.coins.length) return;
+  if (state.usingFallback || state.isPreviewMarket || !state.coins.length) return;
 
   try {
     localStorage.setItem(
@@ -2331,7 +2369,7 @@ async function requestPasswordReset() {
   const email = elements.authEmailInput.value.trim().toLowerCase();
   if (!email) {
     elements.authEmailInput.focus();
-    showToast("Укажи email", "Мы отправим ссылку восстановления на почту аккаунта.", -1);
+    showToast("Укажи email аккаунта", "По нему найдём привязанный Telegram и отправим ссылку восстановления в бота.", -1);
     return;
   }
 
@@ -2343,9 +2381,9 @@ async function requestPasswordReset() {
       },
       body: JSON.stringify({ email }),
     });
-    showToast("Проверь почту", "Если аккаунт есть, письмо со ссылкой восстановления уже отправлено.", 1);
+    showToast("Проверь Telegram", "Если аккаунт найден и бот привязан, ссылка восстановления придёт в Telegram.", 1);
   } catch (error) {
-    showToast("Не удалось отправить письмо", "Попробуй ещё раз или напиши администратору.", -1);
+    showToast("Не удалось отправить запрос", "Попробуй ещё раз или напиши администратору.", -1);
   }
 }
 
@@ -6053,7 +6091,11 @@ function renderStatus() {
   const time = state.lastUpdated
     ? state.lastUpdated.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
     : "";
-  const source = state.usingFallback ? "ждём live-рынок, встроенные цены отключены" : "live, обновлено";
+  const source = state.isPreviewMarket
+    ? "быстрый старт, live обновляется"
+    : state.usingFallback
+      ? "ждём live-рынок, встроенные цены отключены"
+      : "live, обновлено";
   setStatus(`${source} ${time}`.trim());
   elements.updateCadence.textContent = "Quotes 30s · F&G daily · Altseason 30d proxy";
 }
