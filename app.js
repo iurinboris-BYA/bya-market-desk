@@ -20,6 +20,7 @@ const MARKET_PAGE_DELAY_MS = 650;
 const MARKET_PAGE_RETRY_DELAY_MS = 1800;
 const MOVERS_VISIBLE_COUNT = 30;
 const MARKET_RENDER_CHUNK_SIZE = 250;
+const MARKET_SNAPSHOT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const STABLE_OR_WRAPPED_SYMBOLS = new Set([
   "usdt",
   "usdc",
@@ -95,6 +96,7 @@ const STORAGE_KEYS = {
   watchlist: "bya.compare.watchlist.v1",
   watchlistNotes: "bya.compare.watchlist.notes.v1",
   user: "bya.marketdesk.user.v1",
+  marketSnapshot: "bya.marketdesk.market.snapshot.v1",
 };
 
 const PORTFOLIO_WALLETS = [
@@ -118,7 +120,7 @@ const fallbackCoins = [
     symbol: "btc",
     name: "Bitcoin",
     image: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
-    current_price: 104500,
+    current_price: 0,
     high_24h: 106100,
     low_24h: 101900,
     market_cap: 2070000000000,
@@ -138,7 +140,7 @@ const fallbackCoins = [
     symbol: "eth",
     name: "Ethereum",
     image: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
-    current_price: 3480,
+    current_price: 0,
     high_24h: 3540,
     low_24h: 3390,
     market_cap: 420000000000,
@@ -158,7 +160,7 @@ const fallbackCoins = [
     symbol: "sol",
     name: "Solana",
     image: "https://assets.coingecko.com/coins/images/4128/large/solana.png",
-    current_price: 168,
+    current_price: 0,
     high_24h: 172,
     low_24h: 158,
     market_cap: 76000000000,
@@ -178,7 +180,7 @@ const fallbackCoins = [
     symbol: "xrp",
     name: "XRP",
     image: "https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png",
-    current_price: 0.61,
+    current_price: 0,
     high_24h: 0.63,
     low_24h: 0.59,
     market_cap: 34500000000,
@@ -194,6 +196,24 @@ const fallbackCoins = [
     total_supply: 100000000000,
   },
 ];
+
+function getFallbackCoinsWithoutMarketPrices() {
+  return fallbackCoins.map((coin) => ({
+    ...coin,
+    current_price: 0,
+    high_24h: 0,
+    low_24h: 0,
+    market_cap: 0,
+    total_volume: 0,
+    price_change_percentage_1h_in_currency: null,
+    price_change_percentage_24h: null,
+    price_change_percentage_7d_in_currency: null,
+    price_change_percentage_30d_in_currency: null,
+    ath_change_percentage: null,
+    atl_change_percentage: null,
+    sparkline_in_7d: { price: [] },
+  }));
+}
 
 const state = {
   coins: [],
@@ -211,6 +231,7 @@ const state = {
   currency: "usd",
   sortKey: "market_cap_rank",
   sortDirection: "asc",
+  showWatchlistOnly: false,
   marketLimit: DEFAULT_MARKET_LIMIT,
   visibleMarketRows: MARKET_RENDER_CHUNK_SIZE,
   moverLimit: DEFAULT_MOVER_LIMIT,
@@ -244,6 +265,7 @@ const state = {
   accountSyncTimer: null,
   isApplyingAccountPortfolio: false,
   isSyncingAccountPortfolio: false,
+  isLoadingMarketDepth: false,
   passwordReset: null,
   nextRefreshAt: null,
   lastUpdated: null,
@@ -267,6 +289,7 @@ const elements = {
   portfolioList: document.querySelector("#portfolioList"),
   portfolioPageForm: document.querySelector("#portfolioPageForm"),
   portfolioPageCoinSearchInput: document.querySelector("#portfolioPageCoinSearchInput"),
+  portfolioPageCoinDropdown: document.querySelector("#portfolioPageCoinDropdown"),
   portfolioPageCoinSelect: document.querySelector("#portfolioPageCoinSelect"),
   portfolioPageAmountInput: document.querySelector("#portfolioPageAmountInput"),
   portfolioPageTotalInput: document.querySelector("#portfolioPageTotalInput"),
@@ -281,7 +304,10 @@ const elements = {
   closePositionAsset: document.querySelector("#closePositionAsset"),
   closePositionPrice: document.querySelector("#closePositionPrice"),
   closePositionAmount: document.querySelector("#closePositionAmount"),
+  closePositionPriceInput: document.querySelector("#closePositionPriceInput"),
   closePositionPercentInput: document.querySelector("#closePositionPercentInput"),
+  closePositionPercentRange: document.querySelector("#closePositionPercentRange"),
+  closePositionPercentValue: document.querySelector("#closePositionPercentValue"),
   closePositionAmountInput: document.querySelector("#closePositionAmountInput"),
   closePercentButtons: document.querySelectorAll("[data-close-percent]"),
   closePositionPreview: document.querySelector("#closePositionPreview"),
@@ -384,6 +410,7 @@ const elements = {
   watchlistMetric: document.querySelector("#watchlistMetric"),
   closedPositionsMetric: document.querySelector("#closedPositionsMetric"),
   segmentButtons: document.querySelectorAll(".segment"),
+  watchlistOnlyBtn: document.querySelector("#watchlistOnlyBtn"),
   sortHeaderButtons: document.querySelectorAll(".sort-header"),
 };
 
@@ -407,7 +434,9 @@ function init() {
   renderUser();
   loadAccountPortfolioData();
   renderSortHeaders();
-  renderLoadingRows();
+  if (!hydrateMarketSnapshot()) {
+    renderLoadingRows();
+  }
   renderClosedPositions();
   renderCookieConsent();
   loadDashboard();
@@ -450,19 +479,20 @@ function bindEvents() {
   elements.refreshBtn.addEventListener("click", loadDashboard);
 
   elements.coinSearchInput.addEventListener("focus", () => renderCoinSearchDropdown());
-  elements.coinSearchInput.addEventListener("input", () => {
-    state.quickPortfolioCoinId = "";
-    renderCoinSearchDropdown();
-  });
+  elements.coinSearchInput.addEventListener("input", handleQuickCoinSearchInput);
   elements.coinSearchInput.addEventListener("keydown", handleCoinSearchKeydown);
   document.addEventListener("click", handleExternalLinkClick, { capture: true });
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".coin-picker")) {
       hideCoinSearchDropdown();
     }
+    if (!event.target.closest(".portfolio-page-coin-picker")) {
+      hidePortfolioPageCoinDropdown();
+    }
   });
 
   elements.segmentButtons.forEach((button) => {
+    if (!button.dataset.sort) return;
     button.addEventListener("click", () => {
       elements.segmentButtons.forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
@@ -473,6 +503,13 @@ function bindEvents() {
       renderMarket();
       renderSortHeaders();
     });
+  });
+  elements.watchlistOnlyBtn?.addEventListener("click", () => {
+    state.showWatchlistOnly = !state.showWatchlistOnly;
+    state.visibleMarketRows = MARKET_RENDER_CHUNK_SIZE;
+    applyFilters();
+    renderMarket();
+    renderWatchlistFilterButton();
   });
 
   elements.sortHeaderButtons.forEach((button) => {
@@ -520,21 +557,13 @@ function bindEvents() {
 
   elements.portfolioPageCoinSelect.addEventListener("change", () => {
     syncPortfolioCoinSearchToSelection();
-    useCurrentMarketPrice();
+    setPortfolioPageMarketPriceFromSelection();
     updatePortfolioMarketPriceHint();
+    recalculatePortfolioAmount("coin");
   });
+  elements.portfolioPageCoinSearchInput?.addEventListener("focus", () => renderPortfolioPageCoinDropdown());
   elements.portfolioPageCoinSearchInput?.addEventListener("input", handlePortfolioCoinSearchInput);
-  elements.portfolioPageCoinSearchInput?.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      elements.portfolioPageCoinSearchInput.value = "";
-      renderPortfolioPageCoinOptions("");
-      syncPortfolioCoinSearchToSelection();
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      elements.portfolioPageAmountInput.focus();
-    }
-  });
+  elements.portfolioPageCoinSearchInput?.addEventListener("keydown", handlePortfolioPageCoinKeydown);
   elements.portfolioPageAmountInput.addEventListener("input", () => recalculatePortfolioAmount("amount"));
   elements.portfolioPageTotalInput.addEventListener("input", () => recalculatePortfolioAmount("total"));
   elements.portfolioPageCostInput.addEventListener("input", () => recalculatePortfolioAmount("price"));
@@ -553,10 +582,19 @@ function bindEvents() {
     }
   });
   elements.closePositionPercentInput.addEventListener("input", () => syncCloseInputs("percent"));
+  elements.closePositionPriceInput?.addEventListener("input", updateClosePositionPreview);
+  elements.closePositionPriceInput?.addEventListener("focus", () => elements.closePositionPriceInput.select());
+  elements.closePositionPercentRange?.addEventListener("input", () => {
+    elements.closePositionPercentInput.value = elements.closePositionPercentRange.value;
+    syncCloseInputs("percent");
+  });
   elements.closePositionAmountInput.addEventListener("input", () => syncCloseInputs("amount"));
   elements.closePercentButtons.forEach((button) => {
     button.addEventListener("click", () => {
       elements.closePositionPercentInput.value = button.dataset.closePercent;
+      if (elements.closePositionPercentRange) {
+        elements.closePositionPercentRange.value = button.dataset.closePercent;
+      }
       syncCloseInputs("percent");
     });
   });
@@ -611,6 +649,12 @@ function bindEvents() {
     switchPortfolioBook(event.target.value);
   });
   elements.portfolioBookTabs?.addEventListener("click", handlePortfolioBookTabClick);
+  elements.portfolioBookTabs?.addEventListener("dblclick", (event) => {
+    const tab = event.target.closest?.("[data-book-tab]");
+    if (tab) {
+      renamePortfolioBookById(tab.dataset.bookTab);
+    }
+  });
   elements.createPortfolioBookBtn?.addEventListener("click", () => {
     if (!requireUserForPortfolioAction()) return;
     createPortfolioBook();
@@ -638,6 +682,7 @@ function bindEvents() {
   elements.clearWatchlistBtn?.addEventListener("click", () => {
     state.watchlist = [];
     state.watchlistNotes = {};
+    state.showWatchlistOnly = false;
     persistWatchlist();
     persistWatchlistNotes();
     renderAll();
@@ -872,7 +917,7 @@ function setRussianValidityMessage(input) {
   }
 
   if ((input.id === "costInput" || input.id === "portfolioPageCostInput") && input.validity.valueMissing) {
-    input.setCustomValidity("Укажите цену покупки больше нуля.");
+    input.setCustomValidity("Укажите цену актива больше нуля.");
     return;
   }
 
@@ -900,20 +945,14 @@ function validatePortfolioForm(source) {
   const amountInput = isPage ? elements.portfolioPageAmountInput : elements.amountInput;
   const totalInput = isPage ? elements.portfolioPageTotalInput : null;
   const costInput = isPage ? elements.portfolioPageCostInput : elements.costInput;
-  const coinInput = isPage ? elements.portfolioPageCoinSelect : elements.coinSearchInput;
+  const coinInput = isPage ? elements.portfolioPageCoinSearchInput : elements.coinSearchInput;
 
   [coinInput, amountInput, totalInput, costInput].filter(Boolean).forEach((input) => input.setCustomValidity(""));
 
   const coinId = normalizeCoinId(isPage ? elements.portfolioPageCoinSelect.value : getCoinIdFromPortfolioSearch());
-  const coin = findCoin(coinId);
-  const marketPrice = getCoinMarketPrice(coin);
-  const amount = Number(amountInput.value);
-  const total = totalInput ? Number(totalInput.value) : 0;
-  const cost = marketPrice || Number(costInput.value);
-
-  if (marketPrice > 0) {
-    costInput.value = formatPriceInputValue(marketPrice);
-  }
+  const amount = parsePortfolioInputNumber(amountInput.value);
+  const total = totalInput ? parsePortfolioInputNumber(totalInput.value) : 0;
+  const cost = parsePortfolioInputNumber(costInput.value);
 
   if (!coinId) {
     coinInput.setCustomValidity("Выберите монету из списка.");
@@ -921,7 +960,7 @@ function validatePortfolioForm(source) {
 
   if (isPage) {
     if (amount <= 0 && total <= 0) {
-      amountInput.setCustomValidity("Укажите количество монет или сумму покупки.");
+      amountInput.setCustomValidity("Укажите количество монет или сумму сделки.");
     }
   } else if (amount <= 0) {
     amountInput.setCustomValidity("Укажите количество монет.");
@@ -948,32 +987,30 @@ async function loadDashboard(options = {}) {
 
   if (!options.silent) {
     setStatus("Загружаю market-data...");
-    renderLoadingRows(state.marketLimit);
     if (!state.coins.length) {
-      state.coins = fallbackCoins;
-      state.usingFallback = true;
-      applyFilters();
-      renderAll();
+      renderLoadingRows(state.marketLimit);
     }
   }
 
-  const [marketResult, globalResult, fearGreedResult] = await Promise.allSettled([
-    fetchMarket(),
-    fetchGlobalMarket(),
-    fetchFearGreed(),
-  ]);
+  if (!options.silent && state.coins.length) {
+    setStatus("Данные готовы, обновляю live в фоне...");
+  }
 
-  if (marketResult.status === "fulfilled") {
-    state.coins = marketResult.value;
+  const globalPromise = fetchGlobalMarket();
+  const fearGreedPromise = fetchFearGreed();
+
+  try {
+    state.coins = await fetchMarket({ loadDepth: !options.silent });
     state.usingFallback = false;
-  } else {
-    console.warn(marketResult.reason);
-    state.coins = fallbackCoins;
+    saveMarketSnapshot();
+  } catch (error) {
+    console.warn(error);
+    if (!state.coins.length) {
+      state.coins = getFallbackCoinsWithoutMarketPrices();
+    }
     state.usingFallback = true;
   }
 
-  state.global = globalResult.status === "fulfilled" ? globalResult.value : null;
-  state.fearGreed = fearGreedResult.status === "fulfilled" ? fearGreedResult.value : null;
   updateAltseasonFromTopSample(state.coins);
   state.lastUpdated = new Date();
   state.nextRefreshAt = Date.now() + MARKET_REFRESH_MS;
@@ -985,47 +1022,128 @@ async function loadDashboard(options = {}) {
   prunePassivePortfolioValueHistory();
   renderAll();
   setupLiveTickerStream();
+  updateAuxiliaryMarketData(globalPromise, fearGreedPromise);
 }
 
-async function fetchMarket() {
-  const pages = Math.ceil(state.marketLimit / MARKET_PAGE_SIZE);
-  const pagesData = [];
+async function updateAuxiliaryMarketData(globalPromise, fearGreedPromise) {
+  const [globalResult, fearGreedResult] = await Promise.allSettled([globalPromise, fearGreedPromise]);
 
-  for (let index = 0; index < pages; index += 1) {
-    try {
+  if (globalResult.status === "fulfilled") {
+    state.global = globalResult.value;
+  }
+
+  if (fearGreedResult.status === "fulfilled") {
+    state.fearGreed = fearGreedResult.value;
+  }
+
+  saveMarketSnapshot();
+  renderMetrics();
+  renderFearGreed();
+  renderLiveStrip();
+  renderStatus();
+}
+
+async function fetchMarket(options = {}) {
+  const firstPage = await fetchMarketPage(1);
+
+  if (!Array.isArray(firstPage) || !firstPage.length) {
+    throw new Error("Market data unavailable");
+  }
+
+  updateAltseasonFromTopSample(firstPage, true);
+
+  if (options.loadDepth !== false) {
+    loadRemainingMarketDepth(firstPage);
+  }
+
+  return firstPage.slice(0, state.marketLimit);
+}
+
+async function loadRemainingMarketDepth(firstPage = []) {
+  if (state.isLoadingMarketDepth) return;
+  state.isLoadingMarketDepth = true;
+
+  try {
+    const pages = Math.ceil(state.marketLimit / MARKET_PAGE_SIZE);
+    const pagesData = [firstPage];
+
+    for (let index = 1; index < pages; index += 1) {
+      await sleep(MARKET_PAGE_DELAY_MS);
       const pageData = await fetchMarketPage(index + 1);
       pagesData.push(pageData);
-
-      if (index === 0) {
-        updateAltseasonFromTopSample(pageData, true);
-      }
 
       if (!Array.isArray(pageData) || pageData.length < MARKET_PAGE_SIZE) {
         break;
       }
-    } catch (error) {
-      console.warn(error);
     }
 
-    if (index < pages - 1) {
-      await sleep(MARKET_PAGE_DELAY_MS);
-    }
+    const geckoCoins = pagesData.flat().slice(0, state.marketLimit);
+    const marketCoins =
+      geckoCoins.length >= state.marketLimit
+        ? geckoCoins
+        : mergeMarketSources(geckoCoins, await fetchPaprikaMarket()).slice(0, state.marketLimit);
+
+    if (!marketCoins.length) return;
+
+    state.coins = marketCoins;
+    state.usingFallback = false;
+    state.lastUpdated = new Date();
+    applyFilters();
+    repairFallbackPortfolioEntryPrices();
+    seedPortfolioValueHistoryFromEvents();
+    prunePassivePortfolioValueHistory();
+    renderAll();
+    setupLiveTickerStream();
+    saveMarketSnapshot();
+  } catch (error) {
+    console.warn("Market depth load failed", error);
+  } finally {
+    state.isLoadingMarketDepth = false;
+  }
+}
+
+function hydrateMarketSnapshot() {
+  const snapshot = readStorage(STORAGE_KEYS.marketSnapshot, null);
+  if (!snapshot || snapshot.currency !== state.currency || !Array.isArray(snapshot.coins) || !snapshot.coins.length) {
+    return false;
   }
 
-  const geckoCoins = pagesData.flat().slice(0, state.marketLimit);
-
-  if (geckoCoins.length >= state.marketLimit) {
-    return geckoCoins;
+  const updatedAt = Number(snapshot.updatedAt) || 0;
+  if (Date.now() - updatedAt > MARKET_SNAPSHOT_MAX_AGE_MS) {
+    return false;
   }
 
-  const paprikaCoins = await fetchPaprikaMarket();
-  const mergedCoins = mergeMarketSources(geckoCoins, paprikaCoins).slice(0, state.marketLimit);
+  state.coins = snapshot.coins.slice(0, state.marketLimit);
+  state.global = snapshot.global || null;
+  state.fearGreed = snapshot.fearGreed || null;
+  state.usingFallback = false;
+  state.lastUpdated = new Date(updatedAt);
+  state.nextRefreshAt = Date.now() + MARKET_REFRESH_MS;
+  updateAltseasonFromTopSample(state.coins);
+  applyFilters();
+  renderAll();
+  setupLiveTickerStream();
+  setStatus(`Быстрый старт из кеша · ${state.lastUpdated.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`);
+  return true;
+}
 
-  if (!mergedCoins.length) {
-    throw new Error("Market data unavailable");
+function saveMarketSnapshot() {
+  if (state.usingFallback || !state.coins.length) return;
+
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.marketSnapshot,
+      JSON.stringify({
+        currency: state.currency,
+        updatedAt: Date.now(),
+        coins: state.coins.slice(0, state.marketLimit),
+        global: state.global,
+        fearGreed: state.fearGreed,
+      }),
+    );
+  } catch (error) {
+    console.warn("Market snapshot save failed", error);
   }
-
-  return mergedCoins;
 }
 
 async function fetchMarketPage(page) {
@@ -1152,6 +1270,7 @@ async function fetchFearGreed() {
 
 function applyFilters() {
   const query = elements.searchInput.value.trim().toLowerCase();
+  const watchlistIds = new Set(state.watchlist.map((coinId) => normalizeCoinId(coinId)));
   const sorted = [...state.coins].sort((a, b) => {
     const first = getSortValue(a, state.sortKey);
     const second = getSortValue(b, state.sortKey);
@@ -1159,9 +1278,22 @@ function applyFilters() {
     return (first - second) * direction;
   });
 
-  state.filteredCoins = query
+  const searchedCoins = query
     ? sorted.filter((coin) => coin.name.toLowerCase().includes(query) || coin.symbol.toLowerCase().includes(query))
     : sorted;
+  state.filteredCoins = state.showWatchlistOnly
+    ? searchedCoins.filter((coin) => watchlistIds.has(normalizeCoinId(coin.id)) || watchlistIds.has(normalizeCoinId(coin.symbol)))
+    : searchedCoins;
+  renderWatchlistFilterButton();
+}
+
+function renderWatchlistFilterButton() {
+  if (!elements.watchlistOnlyBtn) return;
+
+  const availableWatchlistCount = state.watchlist.map((coinId) => findCoin(coinId)).filter(Boolean).length;
+  elements.watchlistOnlyBtn.classList.toggle("active", state.showWatchlistOnly);
+  elements.watchlistOnlyBtn.disabled = !availableWatchlistCount;
+  elements.watchlistOnlyBtn.textContent = state.showWatchlistOnly ? `★ Избранное (${availableWatchlistCount})` : "★ Избранное";
 }
 
 function getSortValue(coin, sortKey) {
@@ -1488,6 +1620,7 @@ function openPortfolioCoinModal() {
   elements.portfolioPageNoteInput.value = "";
   if (elements.portfolioPageCoinSearchInput) {
     elements.portfolioPageCoinSearchInput.value = "";
+    elements.portfolioPageCoinSearchInput.setCustomValidity("");
     renderPortfolioPageCoinOptions("");
   }
   elements.portfolioPageDateInput.valueAsDate = new Date();
@@ -1501,11 +1634,13 @@ function openPortfolioCoinModal() {
   updatePortfolioNoteCounter();
   recalculatePortfolioAmount("open");
   elements.portfolioPageCoinSearchInput?.focus();
+  renderPortfolioPageCoinDropdown();
 }
 
 function closePortfolioCoinModal() {
   elements.portfolioCoinModal.hidden = true;
   document.body.classList.remove("modal-open");
+  hidePortfolioPageCoinDropdown();
 }
 
 function createPortfolioBookSnapshot(book = {}) {
@@ -1590,38 +1725,11 @@ function normalizePortfolioCoinReferences(items) {
 }
 
 function repairFallbackPortfolioEntryPrices() {
-  if (state.usingFallback || !state.portfolio.length) {
-    return;
-  }
+  return;
+}
 
-  let changed = false;
-  state.portfolio = state.portfolio.map((position) => {
-    const coin = findCoin(position.coinId);
-    const marketPrice = getCoinMarketPrice(coin);
-    const fallbackCoin = fallbackCoins.find(
-      (item) =>
-        item.id === normalizeCoinId(position.coinId) ||
-        String(item.symbol).toLowerCase() === String(coin?.symbol || "").toLowerCase(),
-    );
-    const fallbackPrice = Number(fallbackCoin?.current_price) || 0;
-    const entryPrice = Number(position.cost) || 0;
-
-    if (
-      marketPrice > 0 &&
-      fallbackPrice > 0 &&
-      Math.abs(entryPrice - fallbackPrice) <= Math.max(1, fallbackPrice * 0.000001) &&
-      Math.abs(marketPrice - fallbackPrice) / fallbackPrice > 0.02
-    ) {
-      changed = true;
-      return { ...position, cost: marketPrice };
-    }
-
-    return position;
-  });
-
-  if (changed) {
-    persistPortfolio();
-  }
+function getPortfolioEntryCost(position) {
+  return Number(position?.cost) || 0;
 }
 
 function persistPortfolioBooks(options = {}) {
@@ -1668,9 +1776,15 @@ function renderPortfolioBookTabs() {
     .map((book) => {
       const isActive = book.id === state.activePortfolioBookId;
       const isPrimary = book.id === primaryBookId;
+      const displayName = getPortfolioBookDisplayName(book, isPrimary);
       return `
         <span class="portfolio-book-tab ${isActive ? "active" : ""}" data-book-tab="${escapeAttribute(book.id)}">
-          <button class="portfolio-book-tab-main" type="button" data-book-switch="${escapeAttribute(book.id)}">${escapeHtml(book.name)}</button>
+          <button class="portfolio-book-tab-main" type="button" data-book-switch="${escapeAttribute(book.id)}" title="${escapeAttribute(book.name)}">${escapeHtml(displayName)}</button>
+          ${
+            isActive
+              ? `<button class="portfolio-book-tab-rename" type="button" data-book-rename="${escapeAttribute(book.id)}" aria-label="Переименовать портфель ${escapeAttribute(book.name)}">✎</button>`
+              : ""
+          }
           ${
             isPrimary
               ? ""
@@ -1682,7 +1796,19 @@ function renderPortfolioBookTabs() {
     .join("");
 }
 
+function getPortfolioBookDisplayName(book, isPrimary = false) {
+  const name = String(book?.name || "").trim();
+  if (isPrimary && (!name || name === "Основной портфель")) return "Портфель";
+  return name || "Портфель";
+}
+
 function handlePortfolioBookTabClick(event) {
+  const renameButton = event.target.closest?.("[data-book-rename]");
+  if (renameButton) {
+    renamePortfolioBookById(renameButton.dataset.bookRename);
+    return;
+  }
+
   const deleteButton = event.target.closest?.("[data-book-delete]");
   if (deleteButton) {
     deletePortfolioBookById(deleteButton.dataset.bookDelete);
@@ -1693,6 +1819,25 @@ function handlePortfolioBookTabClick(event) {
   if (switchButton) {
     switchPortfolioBook(switchButton.dataset.bookSwitch);
   }
+}
+
+function renamePortfolioBookById(bookId) {
+  const book = state.portfolioBooks.find((item) => item.id === bookId);
+  if (!book) return;
+
+  const nextName = window.prompt("Название портфеля", book.name);
+  if (nextName === null) return;
+
+  const trimmedName = nextName.trim();
+  if (!trimmedName || trimmedName === book.name) return;
+
+  book.name = trimmedName.slice(0, 48);
+  book.updatedAt = new Date().toISOString();
+  saveActivePortfolioBook();
+  persistPortfolioBooks();
+  persistActivePortfolioData();
+  renderPortfolioBooks();
+  showToast("Портфель переименован", book.name, 1);
 }
 
 function createPortfolioBook() {
@@ -1805,7 +1950,12 @@ function openPortfolioCloseModal(positionIds) {
   state.pendingClosePositionIds = positions.map((position) => position.id);
   elements.portfolioCloseForm.dataset.closeMode = "percent";
   elements.closePositionPercentInput.value = "100";
+  if (elements.closePositionPercentRange) {
+    elements.closePositionPercentRange.value = "100";
+  }
+  updateClosePercentControls(100);
   elements.closePositionAmountInput.value = "";
+  elements.closePositionPriceInput.value = formatPriceInputValue(getDefaultClosePrice(positions));
   elements.portfolioCloseModal.hidden = false;
   document.body.classList.add("modal-open");
   updateClosePositionPreview();
@@ -1822,6 +1972,17 @@ function getPendingClosePositions() {
   return state.pendingClosePositionIds.map((id) => state.portfolio.find((position) => position.id === id)).filter(Boolean);
 }
 
+function getDefaultClosePrice(positions) {
+  const firstPosition = positions[0];
+  const coin = findCoin(firstPosition?.coinId);
+  return Number(coin?.current_price) || Number(firstPosition?.cost) || 0;
+}
+
+function getManualClosePrice(positions = getPendingClosePositions()) {
+  const manualPrice = parsePortfolioInputNumber(elements.closePositionPriceInput?.value);
+  return Number.isFinite(manualPrice) && manualPrice > 0 ? manualPrice : getDefaultClosePrice(positions);
+}
+
 function updateClosePositionPreview() {
   const positions = getPendingClosePositions();
   if (!positions.length) return;
@@ -1829,23 +1990,35 @@ function updateClosePositionPreview() {
   const closeRequest = getCloseRequest(positions);
   const percent = closeRequest.percent;
   const firstCoin = findCoin(positions[0].coinId);
+  const closePrice = getManualClosePrice(positions);
   const totalAmount = closeRequest.totalAmount;
   const closeAmount = closeRequest.amount;
-  const closeValue = positions.reduce((sum, position) => {
-    const coin = findCoin(position.coinId);
-    return sum + (Number(coin?.current_price) || Number(position.cost) || 0) * (Number(position.amount) || 0) * (percent / 100);
-  }, 0);
-  const entryValue = positions.reduce((sum, position) => sum + (Number(position.cost) || 0) * (Number(position.amount) || 0) * (percent / 100), 0);
+  const closeValue = positions.reduce((sum, position) => sum + closePrice * (Number(position.amount) || 0) * (percent / 100), 0);
+  const entryValue = positions.reduce((sum, position) => sum + getPortfolioEntryCost(position) * (Number(position.amount) || 0) * (percent / 100), 0);
   const pnl = closeValue - entryValue;
   const symbol = firstCoin?.symbol?.toUpperCase() || "";
   const name = positions.length > 1 ? `${firstCoin?.name || "Позиция"} · ${positions.length} входа` : firstCoin?.name || "Позиция";
 
   elements.closePositionAsset.textContent = name;
-  elements.closePositionPrice.textContent = `Цена закрытия: ${formatMoney(Number(firstCoin?.current_price) || Number(positions[0].cost) || 0)}`;
+  elements.closePositionPrice.textContent = `Цена продажи: ${formatMoney(closePrice)}`;
   elements.closePositionAmount.textContent = `${formatAmount(closeAmount)} ${symbol} из ${formatAmount(totalAmount)} ${symbol}`;
   elements.closePositionPreview.textContent = `${formatMoney(closeValue)} · ${formatPortfolioDeltaMoney(pnl)} (${formatPercent(entryValue > 0 ? (pnl / entryValue) * 100 : 0)})`;
   elements.closePositionPreview.className = changeClass(pnl);
   elements.closePositionHint.textContent = percent >= 100 ? "Позиция будет полностью перенесена в закрытые." : `В портфеле останется ${formatPlainPercent(100 - percent)} позиции.`;
+}
+
+function updateClosePercentControls(percent) {
+  const normalized = clampClosePercent(percent);
+  if (elements.closePositionPercentRange) {
+    elements.closePositionPercentRange.value = String(Math.round(normalized));
+  }
+  if (elements.closePositionPercentValue) {
+    elements.closePositionPercentValue.textContent = formatPlainPercent(normalized);
+  }
+  elements.closePercentButtons.forEach((button) => {
+    const buttonPercent = Number(button.dataset.closePercent);
+    button.classList.toggle("active", Math.abs(buttonPercent - normalized) < 0.01);
+  });
 }
 
 function syncCloseInputs(source) {
@@ -1854,10 +2027,20 @@ function syncCloseInputs(source) {
 
   if (source === "amount") {
     elements.portfolioCloseForm.dataset.closeMode = "amount";
-    elements.closePositionPercentInput.value = "";
+    const totalAmount = getCloseTotalAmount(positions);
+    const amount = clampCloseAmount(elements.closePositionAmountInput.value, totalAmount);
+    const percent = totalAmount > 0 ? (amount / totalAmount) * 100 : 0;
+    elements.closePositionPercentInput.value = percent > 0 ? trimNumber(percent, 2) : "";
+    updateClosePercentControls(percent || 1);
   } else {
     elements.portfolioCloseForm.dataset.closeMode = "percent";
     elements.closePositionAmountInput.value = "";
+    const rawPercent = parseCloseNumber(elements.closePositionPercentInput.value);
+    const percent = Number.isFinite(rawPercent) ? clampClosePercent(rawPercent) : 1;
+    if (Number.isFinite(rawPercent)) {
+      elements.closePositionPercentInput.value = trimNumber(percent, 2);
+    }
+    updateClosePercentControls(percent);
   }
 
   updateClosePositionPreview();
@@ -1894,13 +2077,16 @@ function clampCloseAmount(value, totalAmount) {
 
 function clampClosePercent(value) {
   const percent = parseCloseNumber(value);
-  if (!Number.isFinite(percent)) return 100;
-  return Math.max(0, Math.min(100, percent));
+  if (!Number.isFinite(percent)) return 1;
+  return Math.max(1, Math.min(100, percent));
 }
 
 function parseCloseNumber(value) {
   if (typeof value === "number") return value;
-  const normalized = String(value ?? "").trim().replace(",", ".");
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/[\s\u00a0$€₽₿]/g, "")
+    .replace(",", ".");
   if (!normalized) return Number.NaN;
   return Number(normalized);
 }
@@ -1917,7 +2103,14 @@ function confirmClosePortfolioPosition() {
 
   const { percent } = getCloseRequest(positions);
   if (percent <= 0) return;
-  const result = closePortfolioPositions(positions, percent);
+  const closePrice = getManualClosePrice(positions);
+  if (closePrice <= 0) {
+    elements.closePositionPriceInput.setCustomValidity("Укажите цену продажи больше нуля.");
+    elements.closePositionPriceInput.reportValidity();
+    return;
+  }
+  elements.closePositionPriceInput.setCustomValidity("");
+  const result = closePortfolioPositions(positions, percent, closePrice);
   closePortfolioCloseModal();
   if (result) {
     showToast(result.title, result.message, result.pnl);
@@ -1944,21 +2137,35 @@ function showToast(title, message, value = 0) {
 window.showToast = showToast;
 
 function useCurrentMarketPrice() {
+  if (setPortfolioPageMarketPriceFromSelection({ report: true, focus: true })) {
+    return;
+  }
+}
+
+function setPortfolioPageMarketPriceFromSelection(options = {}) {
   const coin = findCoin(elements.portfolioPageCoinSelect.value);
   const marketPrice = getCoinMarketPrice(coin);
   if (!marketPrice) {
-    elements.portfolioPageCostInput.value = "";
-    return;
+    if (options.report) {
+      elements.portfolioPageCostInput.setCustomValidity("Текущая цена пока недоступна. Введите цену актива вручную.");
+      elements.portfolioPageCostInput.reportValidity();
+    }
+    return false;
   }
 
   elements.portfolioPageCostInput.value = formatPriceInputValue(marketPrice);
+  elements.portfolioPageCostInput.setCustomValidity("");
   recalculatePortfolioAmount("price");
+  if (options.focus) {
+    elements.portfolioPageCostInput.focus();
+  }
+  return true;
 }
 
 function useQuickMarketPrice() {
   const coinId = getCoinIdFromPortfolioSearch();
   const coin = findCoin(coinId);
-  const marketPrice = getCoinMarketPrice(coin);
+  const marketPrice = getQuickCoinPrice(coin);
 
   if (!marketPrice) {
     elements.coinSearchInput.setCustomValidity("Выберите монету, чтобы подставить рыночную цену.");
@@ -1988,27 +2195,16 @@ function updatePortfolioNoteCounter() {
   elements.portfolioNoteCounter.textContent = String(elements.portfolioPageNoteInput.value.length);
 }
 
-function recalculatePortfolioAmount(source) {
-  const amount = Number(elements.portfolioPageAmountInput.value);
-  const total = Number(elements.portfolioPageTotalInput.value);
-  const price = Number(elements.portfolioPageCostInput.value);
+function recalculatePortfolioAmount() {
+  const amount = parsePortfolioInputNumber(elements.portfolioPageAmountInput.value);
+  const total = parsePortfolioInputNumber(elements.portfolioPageTotalInput.value);
+  const price = parsePortfolioInputNumber(elements.portfolioPageCostInput.value);
 
-  if (source === "total" && total > 0 && price > 0) {
-    elements.portfolioPageAmountInput.value = trimNumber(total / price, 8);
-  }
-
-  if ((source === "amount" || source === "price") && amount > 0 && price > 0) {
-    elements.portfolioPageTotalInput.value = trimNumber(amount * price, 2);
-  }
-
-  if (source === "coin" || source === "open") {
-    useCurrentMarketPrice();
-    return;
-  }
-
-  const finalAmount = Number(elements.portfolioPageAmountInput.value);
-  const finalTotal = Number(elements.portfolioPageTotalInput.value);
   const coin = findCoin(elements.portfolioPageCoinSelect.value);
+  const calculatedTotal = amount > 0 && price > 0 ? amount * price : 0;
+  const previewTotal = total > 0 ? total : calculatedTotal;
+  const finalAmount = amount;
+  const finalTotal = previewTotal;
 
   elements.portfolioAddPreview.textContent =
     finalAmount > 0 && price > 0
@@ -2380,7 +2576,7 @@ function renderMarket() {
     row.querySelector(".rank-cell").textContent = coin.market_cap_rank || "-";
     row.querySelector(".coin-name").textContent = coin.name;
     row.querySelector(".coin-symbol").textContent = coin.symbol.toUpperCase();
-    row.querySelector(".price-cell").textContent = formatMoney(coin.current_price);
+    row.querySelector(".price-cell").textContent = formatLiveMarketPrice(coin);
     row.querySelector(".direct-volume-cell").textContent = formatCompact(coin.total_volume);
     row.querySelector(".total-volume-cell").textContent = formatCompact(getEstimatedTotalVolume(coin));
     row.querySelector(".cap-cell").textContent = formatCompact(coin.market_cap);
@@ -2435,6 +2631,7 @@ function renderCoinSelect() {
   updatePortfolioMarketPriceHint();
   recalculatePortfolioAmount("coin");
   renderCoinSearchDropdown(false);
+  renderPortfolioPageCoinDropdown(false);
 }
 
 function getPortfolioPageCoinLabel(coin) {
@@ -2478,9 +2675,132 @@ function syncPortfolioCoinSearchToSelection() {
 }
 
 function handlePortfolioCoinSearchInput() {
+  elements.portfolioPageCoinSearchInput.setCustomValidity("");
   renderPortfolioPageCoinOptions(elements.portfolioPageCoinSearchInput.value);
-  useCurrentMarketPrice();
+  renderPortfolioPageCoinDropdown();
+  setPortfolioPageMarketPriceFromSelection();
   updatePortfolioMarketPriceHint();
+  recalculatePortfolioAmount("coin");
+}
+
+function renderPortfolioPageCoinDropdown(shouldOpen = true) {
+  const dropdown = elements.portfolioPageCoinDropdown;
+  const input = elements.portfolioPageCoinSearchInput;
+
+  if (!dropdown || !input) {
+    return;
+  }
+
+  const matches = getPortfolioPageCoinMatches(input.value).slice(0, 80);
+
+  if (!shouldOpen) {
+    hidePortfolioPageCoinDropdown();
+    return;
+  }
+
+  if (!matches.length) {
+    dropdown.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    dropdown.innerHTML = `<div class="coin-search-empty">Монета не найдена</div>`;
+    return;
+  }
+
+  dropdown.innerHTML = matches
+    .map(
+      (coin, index) => `
+        <button
+          class="coin-search-option"
+          data-page-coin-id="${coin.id}"
+          role="option"
+          type="button"
+          ${index === 0 ? 'data-active="true"' : ""}
+        >
+          <span>${coin.name}</span>
+          <small>${coin.symbol.toUpperCase()} · rank #${coin.market_cap_rank || "-"}</small>
+        </button>
+      `,
+    )
+    .join("");
+
+  dropdown.hidden = false;
+  input.setAttribute("aria-expanded", "true");
+  dropdown.querySelectorAll("[data-page-coin-id]").forEach((button) => {
+    button.addEventListener("click", () => selectPortfolioPageCoin(button.dataset.pageCoinId));
+  });
+}
+
+function hidePortfolioPageCoinDropdown() {
+  if (!elements.portfolioPageCoinDropdown || !elements.portfolioPageCoinSearchInput) {
+    return;
+  }
+
+  elements.portfolioPageCoinDropdown.hidden = true;
+  elements.portfolioPageCoinSearchInput.setAttribute("aria-expanded", "false");
+}
+
+function selectPortfolioPageCoin(coinId) {
+  const coin = findCoin(coinId);
+  if (!coin) {
+    return;
+  }
+
+  elements.portfolioPageCoinSelect.value = coin.id;
+  elements.portfolioPageCoinSearchInput.setCustomValidity("");
+  syncPortfolioCoinSearchToSelection();
+  hidePortfolioPageCoinDropdown();
+  setPortfolioPageMarketPriceFromSelection();
+  updatePortfolioMarketPriceHint();
+  recalculatePortfolioAmount("coin");
+}
+
+function handlePortfolioPageCoinKeydown(event) {
+  const dropdown = elements.portfolioPageCoinDropdown;
+  if (!dropdown || dropdown.hidden) {
+    if (event.key === "ArrowDown") {
+      renderPortfolioPageCoinDropdown();
+      event.preventDefault();
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      elements.portfolioPageAmountInput.focus();
+    }
+    return;
+  }
+
+  const options = [...dropdown.querySelectorAll(".coin-search-option")];
+  const activeIndex = Math.max(0, options.findIndex((option) => option.dataset.active === "true"));
+
+  if (event.key === "Escape") {
+    elements.portfolioPageCoinSearchInput.value = "";
+    renderPortfolioPageCoinOptions("");
+    syncPortfolioCoinSearchToSelection();
+    hidePortfolioPageCoinDropdown();
+    event.preventDefault();
+    return;
+  }
+
+  if (event.key === "Enter") {
+    const activeOption = options[activeIndex];
+    if (activeOption) {
+      selectPortfolioPageCoin(activeOption.dataset.pageCoinId);
+    }
+    elements.portfolioPageAmountInput.focus();
+    event.preventDefault();
+    return;
+  }
+
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+    return;
+  }
+
+  const nextIndex =
+    event.key === "ArrowDown" ? Math.min(activeIndex + 1, options.length - 1) : Math.max(activeIndex - 1, 0);
+
+  options.forEach((option, index) => {
+    option.dataset.active = String(index === nextIndex);
+  });
+  options[nextIndex]?.scrollIntoView({ block: "nearest" });
+  event.preventDefault();
 }
 
 function renderCoinSearchDropdown(shouldOpen = true) {
@@ -2491,17 +2811,7 @@ function renderCoinSearchDropdown(shouldOpen = true) {
     return;
   }
 
-  const query = input.value.trim().toLowerCase();
-  const matches = state.coins
-    .filter((coin) => {
-      if (!query) return true;
-      return (
-        coin.name.toLowerCase().includes(query) ||
-        coin.symbol.toLowerCase().includes(query) ||
-        `${coin.name} ${coin.symbol}`.toLowerCase().includes(query)
-      );
-    })
-    .slice(0, 80);
+  const matches = getQuickCoinMatches(input.value).slice(0, 80);
 
   if (!shouldOpen) {
     dropdown.hidden = true;
@@ -2527,6 +2837,7 @@ function renderCoinSearchDropdown(shouldOpen = true) {
           ${index === 0 ? 'data-active="true"' : ""}
         >
           <span>${coin.name}</span>
+          <small>${formatQuickCoinPrice(coin)}</small>
           <small>${coin.symbol.toUpperCase()} · rank #${coin.market_cap_rank || "-"}</small>
         </button>
       `,
@@ -2538,6 +2849,27 @@ function renderCoinSearchDropdown(shouldOpen = true) {
   dropdown.querySelectorAll("[data-coin-id]").forEach((button) => {
     button.addEventListener("click", () => selectPortfolioCoin(button.dataset.coinId));
   });
+}
+
+function getQuickCoinMatches(query = "") {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  return state.coins.filter((coin) => {
+    if (!normalizedQuery) return true;
+    return (
+      coin.name.toLowerCase().includes(normalizedQuery) ||
+      coin.symbol.toLowerCase().includes(normalizedQuery) ||
+      `${coin.name} ${coin.symbol}`.toLowerCase().includes(normalizedQuery)
+    );
+  });
+}
+
+function getQuickCoinPrice(coin) {
+  return getCoinMarketPrice(coin);
+}
+
+function formatQuickCoinPrice(coin) {
+  const price = getQuickCoinPrice(coin);
+  return price > 0 ? formatMoney(price) : "цена загружается";
 }
 
 function hideCoinSearchDropdown() {
@@ -2554,14 +2886,21 @@ function selectPortfolioCoin(coinId) {
   if (!coin) {
     return;
   }
-  const marketPrice = getCoinMarketPrice(coin);
+  const marketPrice = getQuickCoinPrice(coin);
 
   state.quickPortfolioCoinId = coin.id;
   elements.coinSearchInput.value = `${coin.name} (${coin.symbol.toUpperCase()})`;
   elements.coinSearchInput.setCustomValidity("");
-  elements.costInput.value = formatPriceInputValue(marketPrice);
+  elements.costInput.value = marketPrice > 0 ? formatPriceInputValue(marketPrice) : "";
   elements.costInput.setCustomValidity("");
   hideCoinSearchDropdown();
+  elements.amountInput.focus();
+}
+
+function handleQuickCoinSearchInput() {
+  state.quickPortfolioCoinId = "";
+  elements.costInput.value = "";
+  renderCoinSearchDropdown();
 }
 
 function handleCoinSearchKeydown(event) {
@@ -2621,7 +2960,7 @@ function renderPortfolio() {
     .map((position) => {
       const coin = findCoin(position.coinId);
       const currentValue = coin ? coin.current_price * position.amount : 0;
-      const costValue = position.cost * position.amount;
+      const costValue = getPortfolioEntryCost(position, coin) * position.amount;
       const pnl = currentValue - costValue;
       const pnlPercent = costValue > 0 ? (pnl / costValue) * 100 : 0;
       const dayMove = currentValue * ((coin?.price_change_percentage_24h || 0) / 100);
@@ -2933,12 +3272,12 @@ function renderPortfolioReport() {
       (state.activePortfolioWallet === "all" || getPortfolioWalletId(position) === state.activePortfolioWallet) &&
       new Date(position.closedAt || 0).getTime() >= periodStart,
   );
-  const closedPnl = closedPositions.reduce((sum, position) => sum + (Number(position.pnl) || 0), 0);
-  const closedValue = closedPositions.reduce((sum, position) => sum + (Number(position.closeValue) || 0), 0);
+  const closedPnl = closedPositions.reduce((sum, position) => sum + getClosedPositionAccounting(position).pnl, 0);
+  const closedValue = closedPositions.reduce((sum, position) => sum + getClosedPositionAccounting(position).closeValue, 0);
   const totals = getPortfolioTotals(getPortfolioScopePositions());
   const activeRows = getPortfolioEntries(getPortfolioScopePositions()).map(enrichPortfolioEntry).filter(Boolean);
-  const bestClosed = [...closedPositions].sort((a, b) => (Number(b.pnl) || 0) - (Number(a.pnl) || 0))[0];
-  const worstClosed = [...closedPositions].sort((a, b) => (Number(a.pnl) || 0) - (Number(b.pnl) || 0))[0];
+  const bestClosed = [...closedPositions].sort((a, b) => getClosedPositionAccounting(b).pnl - getClosedPositionAccounting(a).pnl)[0];
+  const worstClosed = [...closedPositions].sort((a, b) => getClosedPositionAccounting(a).pnl - getClosedPositionAccounting(b).pnl)[0];
   const bestActive = [...activeRows].sort((a, b) => b.pnl - a.pnl)[0];
   const worstActive = [...activeRows].sort((a, b) => a.pnl - b.pnl)[0];
 
@@ -2980,7 +3319,7 @@ function getReportPeriodLabel(period) {
 }
 
 function getAddedPositionsValue(positions) {
-  return positions.reduce((sum, position) => sum + (Number(position.amount) || 0) * (Number(position.cost) || 0), 0);
+  return positions.reduce((sum, position) => sum + (Number(position.amount) || 0) * getPortfolioEntryCost(position), 0);
 }
 
 function reportDealCard(title, position) {
@@ -2990,7 +3329,7 @@ function reportDealCard(title, position) {
   return `
     <article>
       <span>${title}</span>
-      <strong class="${changeClass(position.pnl)}">${formatPortfolioDeltaMoney(position.pnl)}</strong>
+      <strong class="${changeClass(getClosedPositionAccounting(position).pnl)}">${formatPortfolioDeltaMoney(getClosedPositionAccounting(position).pnl)}</strong>
       <small>${position.coinName || position.symbol || "Позиция"} · ${formatAmount(position.amount)} ${position.symbol || ""}</small>
     </article>
   `;
@@ -3030,14 +3369,12 @@ function getPortfolioScopePositions(walletId = state.activePortfolioWallet) {
 }
 
 function getActivePortfolioPositions(positions = state.portfolio) {
-  const closedSourceIds = new Set(state.closedPositions.map((position) => position.sourceId).filter(Boolean));
   const removedSourceIds = new Set(state.portfolioChartHistory.map((position) => position.sourceId).filter(Boolean));
   return positions.filter(
     (position) =>
       Number(position.amount) > 0 &&
       !position.closedAt &&
       !position.removedAt &&
-      !closedSourceIds.has(position.id) &&
       !removedSourceIds.has(position.id) &&
       !isPositionClosedByHistory(position),
   );
@@ -3045,17 +3382,18 @@ function getActivePortfolioPositions(positions = state.portfolio) {
 
 function isPositionClosedByHistory(position) {
   const openedAt = new Date(position.createdAt || position.date || 0).getTime();
-  const amount = Number(position.amount) || 0;
-  if (!position.coinId || amount <= 0) return false;
+  const activeAmount = Number(position.amount) || 0;
+  if (!position.coinId || activeAmount <= 0) return false;
 
   return state.closedPositions.some((closed) => {
     const closedAt = new Date(closed.closedAt || closed.removedAt || 0).getTime();
     const closedAmount = Number(closed.amount) || 0;
     return (
+      !closed.sourceId &&
       closed.coinId === position.coinId &&
       Number.isFinite(closedAt) &&
       (!Number.isFinite(openedAt) || closedAt >= openedAt) &&
-      closedAmount >= amount * 0.999
+      closedAmount >= activeAmount * 0.999
     );
   });
 }
@@ -3281,7 +3619,7 @@ function getPortfolioEntries(positions = getPortfolioScopePositions()) {
       collapsed: true,
     };
     existing.amount += Number(position.amount) || 0;
-    existing.costValue += (Number(position.cost) || 0) * (Number(position.amount) || 0);
+    existing.costValue += getPortfolioEntryCost(position) * (Number(position.amount) || 0);
     existing.lots += 1;
     existing.positions.push(position);
     existing.date = existing.date && position.date && existing.date < position.date ? existing.date : position.date || existing.date;
@@ -3338,12 +3676,13 @@ function formatEntryCount(value) {
 function enrichPortfolioEntry(entry) {
   const coin = findCoin(entry.coinId);
   if (!coin) return null;
+  const cost = getPortfolioEntryCost(entry, coin);
   const currentValue = coin.current_price * entry.amount;
-  const costValue = entry.cost * entry.amount;
+  const costValue = cost * entry.amount;
   const pnl = currentValue - costValue;
   const pnlPercent = costValue > 0 ? (pnl / costValue) * 100 : 0;
   const dayMove = currentValue * ((coin.price_change_percentage_24h || 0) / 100);
-  return { ...entry, coin, currentValue, costValue, pnl, pnlPercent, dayMove };
+  return { ...entry, cost, coin, currentValue, costValue, pnl, pnlPercent, dayMove };
 }
 
 function getPortfolioChartEntries(walletId = "all") {
@@ -3365,10 +3704,10 @@ function getPortfolioChartEntries(walletId = "all") {
 
 function enrichPortfolioChartEntry(entry) {
   const amount = Number(entry.amount) || 0;
-  const cost = Number(entry.cost) || 0;
+  const coin = findCoin(entry.coinId);
+  const cost = getPortfolioEntryCost(entry, coin);
   if (amount <= 0) return null;
 
-  const coin = findCoin(entry.coinId);
   const currentPrice = Number(coin?.current_price) || cost;
   const currentValue = currentPrice * amount;
   const costValue = cost * amount;
@@ -3389,9 +3728,10 @@ function enrichPortfolioChartEntry(entry) {
 
 function getExitedPositionChartEntry(position) {
   const coin = findCoin(position.coinId);
-  const amount = Number(position.amount) || 0;
-  const entryPrice = Number(position.entryPrice) || 0;
-  const closePrice = Number(position.closePrice) || entryPrice;
+  const accounting = getClosedPositionAccounting(position);
+  const amount = accounting.amount;
+  const entryPrice = accounting.entryPrice;
+  const closePrice = accounting.closePrice || entryPrice;
   if (amount <= 0) return null;
 
   return {
@@ -3405,10 +3745,10 @@ function getExitedPositionChartEntry(position) {
     createdAt: position.openedAt,
     date: position.openedAt,
     closedAt: position.closedAt || position.removedAt,
-    costValue: Number(position.entryValue) || entryPrice * amount,
-    currentValue: Number(position.closeValue) || closePrice * amount,
-    pnl: Number(position.pnl) || (closePrice - entryPrice) * amount,
-    pnlPercent: Number(position.pnlPercent) || 0,
+    costValue: accounting.entryValue,
+    currentValue: accounting.closeValue,
+    pnl: accounting.pnl,
+    pnlPercent: accounting.pnlPercent,
     dayMove: 0,
     isExitedChartLot: true,
   };
@@ -4869,7 +5209,7 @@ function renderWatchlist() {
           </div>
           <div class="asset-card-row">
             <small>${coin.symbol.toUpperCase()} · rank #${coin.market_cap_rank || "-"}</small>
-            <strong>${formatMoney(coin.current_price)}</strong>
+            <strong>${formatLiveMarketPrice(coin)}</strong>
           </div>
           <div class="asset-card-row">
             <small>1h / 24h / 30d</small>
@@ -4914,7 +5254,7 @@ function renderWatchlistPage() {
             </div>
           </div>
           <div class="watchlist-card-metrics">
-            <div><span>Цена</span><strong>${formatMoney(coin.current_price)}</strong></div>
+            <div><span>Цена</span><strong>${formatLiveMarketPrice(coin)}</strong></div>
             <div><span>24ч</span><strong class="${changeClass(coin.price_change_percentage_24h)}">${formatPercent(coin.price_change_percentage_24h)}</strong></div>
             <div><span>Объём</span><strong>${formatCompact(coin.total_volume)}</strong></div>
           </div>
@@ -4997,6 +5337,26 @@ function renderClosedPositionsOverview(monthlyGroups, totals) {
   `;
 }
 
+function getClosedPositionAccounting(position) {
+  const amount = Number(position.amount) || 0;
+  const sourcePosition = position.sourceId ? state.portfolio.find((item) => item.id === position.sourceId) : null;
+  const entryPrice = sourcePosition ? getPortfolioEntryCost(sourcePosition) : Number(position.entryPrice) || 0;
+  const closePrice = Number(position.closePrice) || 0;
+  const entryValue = entryPrice > 0 && amount > 0 ? entryPrice * amount : Number(position.entryValue) || 0;
+  const closeValue = closePrice > 0 && amount > 0 ? closePrice * amount : Number(position.closeValue) || 0;
+  const pnl = closeValue - entryValue;
+
+  return {
+    amount,
+    entryPrice,
+    closePrice,
+    entryValue,
+    closeValue,
+    pnl,
+    pnlPercent: entryValue > 0 ? (pnl / entryValue) * 100 : 0,
+  };
+}
+
 function getClosedPositionsMonthlyGroups() {
   const groups = new Map();
 
@@ -5019,10 +5379,11 @@ function getClosedPositionsMonthlyGroups() {
     }
 
     const group = groups.get(key);
+    const accounting = getClosedPositionAccounting(position);
     group.positions.push(position);
-    group.totals.closeValue += Number(position.closeValue) || 0;
-    group.totals.entryValue += Number(position.entryValue) || 0;
-    group.totals.pnl += Number(position.pnl) || 0;
+    group.totals.closeValue += accounting.closeValue;
+    group.totals.entryValue += accounting.entryValue;
+    group.totals.pnl += accounting.pnl;
   });
 
   return Array.from(groups.values()).sort((a, b) => b.key.localeCompare(a.key));
@@ -5062,7 +5423,8 @@ function closedPositionsMonthGroupRows(group) {
 
 function closedPositionRow(position, index) {
   const symbol = position.symbol || "";
-  const resultClass = changeClass(position.pnl);
+  const accounting = getClosedPositionAccounting(position);
+  const resultClass = changeClass(accounting.pnl);
   return `
     <tr>
       <td>${index + 1}</td>
@@ -5077,16 +5439,16 @@ function closedPositionRow(position, index) {
         </div>
       </td>
       <td>
-        <strong>${formatMoney(position.entryPrice)}</strong>
+        <strong>${formatMoney(accounting.entryPrice)}</strong>
         <small>${formatDate(position.openedAt)}</small>
       </td>
       <td>
-        <strong>${formatMoney(position.closePrice)}</strong>
+        <strong>${formatMoney(accounting.closePrice)}</strong>
         <small>${formatDate(position.closedAt)}</small>
       </td>
-      <td><strong>${formatMoney(position.closeValue)}</strong></td>
-      <td><strong class="${resultClass}">${formatPortfolioDeltaMoney(position.pnl)}</strong></td>
-      <td><strong class="${resultClass}">${formatPercent(position.pnlPercent)}</strong></td>
+      <td><strong>${formatMoney(accounting.closeValue)}</strong></td>
+      <td><strong class="${resultClass}">${formatPortfolioDeltaMoney(accounting.pnl)}</strong></td>
+      <td><strong class="${resultClass}">${formatPercent(accounting.pnlPercent)}</strong></td>
     </tr>
   `;
 }
@@ -5691,7 +6053,7 @@ function renderStatus() {
   const time = state.lastUpdated
     ? state.lastUpdated.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
     : "";
-  const source = state.usingFallback ? "демо-данные, API недоступен" : "live, обновлено";
+  const source = state.usingFallback ? "ждём live-рынок, встроенные цены отключены" : "live, обновлено";
   setStatus(`${source} ${time}`.trim());
   elements.updateCadence.textContent = "Quotes 30s · F&G daily · Altseason 30d proxy";
 }
@@ -5796,8 +6158,8 @@ function updateCoinFromTicker(pairSymbol, price, change24) {
 
   const selectedPageCoin = findCoin(elements.portfolioPageCoinSelect?.value);
   if (selectedPageCoin?.symbol?.toLowerCase() === symbol) {
-    useCurrentMarketPrice();
     updatePortfolioMarketPriceHint();
+    recalculatePortfolioAmount("market-update");
   }
 
   const selectedQuickCoin = findCoin(state.quickPortfolioCoinId);
@@ -5818,7 +6180,7 @@ function updateMarketRow(coin) {
   const priceCell = row.querySelector(".price-cell");
   const changeCell = row.querySelector(".change-24");
   const sparkline = row.querySelector(".sparkline");
-  setText(priceCell, formatMoney(coin.current_price));
+  setText(priceCell, formatLiveMarketPrice(coin));
   changeCell.textContent = formatPercent(coin.price_change_percentage_24h);
   changeCell.className = `change-24 ${changeClass(coin.price_change_percentage_24h)}`;
   updateSparklineTail(coin, coin.current_price);
@@ -5849,16 +6211,11 @@ function addPortfolioPosition(source = "quick") {
   const amountInput = isPage ? elements.portfolioPageAmountInput : elements.amountInput;
   const costInput = isPage ? elements.portfolioPageCostInput : elements.costInput;
   const form = isPage ? elements.portfolioPageForm : elements.portfolioForm;
-  let amount = Number(amountInput.value);
-  const total = isPage ? Number(elements.portfolioPageTotalInput.value) : 0;
+  let amount = parsePortfolioInputNumber(amountInput.value);
+  const total = isPage ? parsePortfolioInputNumber(elements.portfolioPageTotalInput.value) : 0;
   const coinId = isPage ? elements.portfolioPageCoinSelect.value : getCoinIdFromPortfolioSearch();
   const coin = findCoin(coinId);
-  const marketPrice = getCoinMarketPrice(coin);
-  const cost = marketPrice || Number(costInput.value);
-
-  if (marketPrice > 0) {
-    costInput.value = formatPriceInputValue(marketPrice);
-  }
+  const cost = parsePortfolioInputNumber(costInput.value);
 
   if (isPage && amount <= 0 && total > 0 && cost > 0) {
     amount = total / cost;
@@ -5887,6 +6244,7 @@ function addPortfolioPosition(source = "quick") {
   form.reset();
   state.quickPortfolioCoinId = "";
   hideCoinSearchDropdown();
+  hidePortfolioPageCoinDropdown();
   elements.portfolioPageDateInput.valueAsDate = new Date();
   if (elements.portfolioPageWalletSelect) {
     elements.portfolioPageWalletSelect.value = DEFAULT_POSITION_WALLET;
@@ -5905,7 +6263,7 @@ function addPortfolioPosition(source = "quick") {
   setupLiveTickerStream();
   showToast(
     `${coin?.name || "Позиция"} добавлена`,
-    `${formatAmount(amount)} ${coin?.symbol?.toUpperCase() || ""} · цена покупки ${formatMoney(cost)}`,
+    `${formatAmount(amount)} ${coin?.symbol?.toUpperCase() || ""} · цена актива ${formatMoney(cost)}`,
     amount * cost,
   );
 }
@@ -6003,7 +6361,7 @@ function rememberPortfolioChartExit(positions, reason = "removed", exitedAt = ne
 function createPortfolioChartExitSnapshot(position, exitedAt, reason = "removed") {
   const coin = findCoin(position.coinId);
   const amount = Number(position.amount) || 0;
-  const entryPrice = Number(position.cost) || 0;
+  const entryPrice = getPortfolioEntryCost(position, coin);
   const closePrice = Number(coin?.current_price) || entryPrice;
   const entryValue = entryPrice * amount;
   const closeValue = closePrice * amount;
@@ -6027,7 +6385,7 @@ function createPortfolioChartExitSnapshot(position, exitedAt, reason = "removed"
   };
 }
 
-function closePortfolioPositions(positions, percent = 100) {
+function closePortfolioPositions(positions, percent = 100, manualClosePrice = null) {
   const closedTime = Date.now();
   const closedAt = new Date(closedTime).toISOString();
   const closeRatio = clampClosePercent(percent) / 100;
@@ -6038,8 +6396,8 @@ function closePortfolioPositions(positions, percent = 100) {
   recordPortfolioValuePoint("before-close", closedTime - 1);
   const snapshots = positions.map((position) => {
     const coin = findCoin(position.coinId);
-    const closePrice = Number(coin?.current_price) || Number(position.cost) || 0;
-    const entryPrice = Number(position.cost) || 0;
+    const entryPrice = getPortfolioEntryCost(position, coin);
+    const closePrice = Number(manualClosePrice) > 0 ? Number(manualClosePrice) : Number(coin?.current_price) || entryPrice;
     const originalAmount = Number(position.amount) || 0;
     const amount = originalAmount * closeRatio;
     const pnl = (closePrice - entryPrice) * amount;
@@ -6086,6 +6444,7 @@ function closePortfolioPositions(positions, percent = 100) {
   state.portfolioCollapsed = state.groupedPortfolioCoins.size > 0;
   persistClosedPositions();
   persistPortfolio();
+  persistActivePortfolioData();
   renderPortfolio();
   renderPortfolioPage();
   renderClosedPositions();
@@ -6101,11 +6460,15 @@ function closePortfolioPositions(positions, percent = 100) {
 function toggleWatchlist(coinId) {
   const isRemoving = state.watchlist.includes(coinId);
   state.watchlist = isRemoving ? state.watchlist.filter((id) => id !== coinId) : [...state.watchlist, coinId];
+  if (state.showWatchlistOnly && !state.watchlist.length) {
+    state.showWatchlistOnly = false;
+  }
   if (isRemoving) {
     delete state.watchlistNotes[coinId];
     persistWatchlistNotes();
   }
   persistWatchlist();
+  applyFilters();
   renderMarket();
   renderWatchlist();
   const coin = findCoin(coinId);
@@ -6129,8 +6492,9 @@ function exportPortfolio() {
   const rows = activePortfolio.map((position) => {
     const coin = findCoin(position.coinId);
     const currentPrice = coin?.current_price || 0;
+    const entryPrice = getPortfolioEntryCost(position, coin);
     const value = currentPrice * position.amount;
-    const cost = position.cost * position.amount;
+    const cost = entryPrice * position.amount;
     const pnl = value - cost;
     const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0;
     const share = totals.value > 0 ? (value / totals.value) * 100 : 0;
@@ -6138,7 +6502,7 @@ function exportPortfolio() {
       coin?.name || position.coinId,
       coin?.symbol?.toUpperCase() || "",
       position.amount,
-      position.cost,
+      entryPrice,
       currentPrice,
       value,
       pnl,
@@ -6168,7 +6532,7 @@ function getPortfolioTotals(positions = state.portfolio) {
       }
 
       const value = coin.current_price * position.amount;
-      const cost = position.cost * position.amount;
+      const cost = getPortfolioEntryCost(position, coin) * position.amount;
       result.value += value;
       result.cost += cost;
       return result;
@@ -6188,7 +6552,7 @@ function getPortfolioTotals(positions = state.portfolio) {
 function getPortfolioCurrentValue() {
   return getActivePortfolioPositions().reduce((sum, position) => {
     const coin = findCoin(position.coinId);
-    return sum + (Number(coin?.current_price) || Number(position.cost) || 0) * (Number(position.amount) || 0);
+    return sum + (Number(coin?.current_price) || getPortfolioEntryCost(position, coin)) * (Number(position.amount) || 0);
   }, 0);
 }
 
@@ -6282,7 +6646,7 @@ function seedPortfolioValueHistoryFromEvents() {
   });
 
   state.portfolio.forEach((position) => {
-    const entryValue = (Number(position.cost) || 0) * (Number(position.amount) || 0);
+    const entryValue = getPortfolioEntryCost(position) * (Number(position.amount) || 0);
     pushEvent(position.createdAt || position.date, entryValue, "seed-open");
   });
 
@@ -6318,9 +6682,10 @@ function prunePassivePortfolioValueHistory() {
 function getClosedPositionsTotals() {
   return state.closedPositions.reduce(
     (totals, position) => {
-      totals.entryValue += Number(position.entryValue) || 0;
-      totals.closeValue += Number(position.closeValue) || 0;
-      totals.pnl += Number(position.pnl) || 0;
+      const accounting = getClosedPositionAccounting(position);
+      totals.entryValue += accounting.entryValue;
+      totals.closeValue += accounting.closeValue;
+      totals.pnl += accounting.pnl;
       return totals;
     },
     { entryValue: 0, closeValue: 0, pnl: 0 },
@@ -6653,6 +7018,7 @@ function classifyFearGreed(value) {
 }
 
 function formatPercent(value) {
+  if (value === null || value === undefined || value === "") return "n/a";
   const number = Number(value);
   if (!Number.isFinite(number)) return "n/a";
   return `${number > 0 ? "+" : ""}${number.toFixed(Math.abs(number) > 1000 ? 0 : 2)}%`;
@@ -6665,6 +7031,11 @@ function formatMoney(value) {
     currency: state.currency.toUpperCase(),
     maximumFractionDigits: amount > 100 ? 0 : 4,
   }).format(amount);
+}
+
+function formatLiveMarketPrice(coin) {
+  const price = getCoinMarketPrice(coin);
+  return price > 0 ? formatMoney(price) : "ждём live";
 }
 
 function formatPortfolioDeltaMoney(value) {
@@ -6703,6 +7074,31 @@ function trimNumber(value, digits) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "";
   return String(Number(number.toFixed(digits)));
+}
+
+function parsePortfolioInputNumber(value) {
+  if (typeof value === "number") return value;
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+
+  const compact = raw.replace(/[\s\u00a0₽$€£¥]/g, "");
+  const hasComma = compact.includes(",");
+  const hasDot = compact.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = compact.lastIndexOf(",");
+    const lastDot = compact.lastIndexOf(".");
+    const decimalSeparator = lastComma > lastDot ? "," : ".";
+    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    return Number(compact.replaceAll(thousandsSeparator, "").replace(decimalSeparator, "."));
+  }
+
+  if (hasComma) {
+    return Number(compact.replaceAll(".", "").replace(",", "."));
+  }
+
+  return Number(compact);
 }
 
 function formatPriceInputValue(value) {

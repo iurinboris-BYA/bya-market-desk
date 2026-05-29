@@ -320,29 +320,37 @@
                 <h2 id="portfolioCoinTitle">Добавить актив в портфолио</h2>
                 <button id="closePortfolioCoinBtn" type="button" aria-label="Закрыть">×</button>
               </header>
-              <div class="portfolio-modal-tabs">
-                <button class="active" type="button">Покупка</button>
-                <button type="button">Заметка</button>
-              </div>
               <form id="portfolioPageForm" class="portfolio-add-form">
                 <label class="coin-search-field">
                   <span>Актив</span>
-                  <input id="portfolioPageCoinSearchInput" type="search" placeholder="Поиск: BTC, Bitcoin, Ethereum" autocomplete="off" />
+                  <div class="portfolio-page-coin-picker">
+                    <input
+                      id="portfolioPageCoinSearchInput"
+                      type="search"
+                      placeholder="BTC, Ethereum, Solana"
+                      autocomplete="off"
+                      aria-autocomplete="list"
+                      aria-expanded="false"
+                      aria-controls="portfolioPageCoinDropdown"
+                      required
+                    />
+                    <div id="portfolioPageCoinDropdown" class="coin-search-dropdown" role="listbox" hidden></div>
+                  </div>
                   <select id="portfolioPageCoinSelect" required></select>
                   <small id="portfolioMarketPriceHint">Текущая цена: ...</small>
                 </label>
                 <label>
                   <span>Количество монет</span>
-                  <input id="portfolioPageAmountInput" type="number" min="0" step="any" placeholder="0.5" />
+                  <input id="portfolioPageAmountInput" type="text" inputmode="decimal" placeholder="0.5" />
                 </label>
                 <label>
-                  <span>Сумма покупки</span>
-                  <input id="portfolioPageTotalInput" type="number" min="0" step="any" placeholder="1000" />
+                  <span>Сумма сделки</span>
+                  <input id="portfolioPageTotalInput" type="text" inputmode="decimal" placeholder="1000" />
                 </label>
                 <label>
-                  <span>Цена входа</span>
+                  <span>Цена актива</span>
                   <div class="price-input-row">
-                    <input id="portfolioPageCostInput" type="number" min="0" step="any" placeholder="42000" required />
+                    <input id="portfolioPageCostInput" type="text" inputmode="decimal" placeholder="42000" required />
                     <button id="useMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
                   </div>
                 </label>
@@ -366,7 +374,7 @@
                 <div class="portfolio-calculation-preview">
                   <span>Итог</span>
                   <strong id="portfolioAddPreview">Укажи сумму или количество</strong>
-                  <small>Количество и сумма пересчитываются автоматически от цены входа.</small>
+                  <small>Поля заполняются вручную. Кнопка «Рынок» подставляет текущую цену актива.</small>
                 </div>
                 <button class="primary-button" type="submit">Добавить позицию</button>
               </form>
@@ -381,9 +389,9 @@
                   <th>Монета / дата</th>
                   <th>Кошелёк</th>
                   <th>Цена</th>
-                  <th>Цена покупки</th>
+                  <th>Цена актива</th>
                   <th>Результат</th>
-                  <th>Изм.</th>
+                  <th>Доходность</th>
                   <th>TV</th>
                 </tr>
               </thead>
@@ -411,8 +419,16 @@
                   <input id="closePositionAmountInput" type="text" inputmode="decimal" value="" />
                 </label>
                 <label>
+                  <span>Цена продажи</span>
+                  <input id="closePositionPriceInput" type="text" inputmode="decimal" value="" />
+                </label>
+                <label>
                   <span>Доля закрытия</span>
                   <input id="closePositionPercentInput" type="text" inputmode="decimal" value="100" />
+                </label>
+                <label class="close-percent-slider">
+                  <span>Выбор доли: <b id="closePositionPercentValue">100%</b></span>
+                  <input id="closePositionPercentRange" type="range" min="1" max="100" step="1" value="100" />
                 </label>
                 <div class="close-percent-actions" aria-label="Быстрый выбор доли">
                   <button type="button" data-close-percent="20">20%</button>
@@ -446,8 +462,8 @@
                 <tr>
                   <th>#</th>
                   <th>Монета</th>
-                  <th>Цена входа</th>
-                  <th>Цена закрытия</th>
+                  <th>Цена актива</th>
+                  <th>Цена продажи</th>
                   <th>Зафиксировано</th>
                   <th>Профит / минус</th>
                   <th>%</th>
@@ -566,6 +582,7 @@
                 <button class="segment active" data-sort="market_cap_rank" type="button">Ранг</button>
                 <button class="segment" data-sort="price_change_percentage_24h" type="button">24ч</button>
                 <button class="segment" data-sort="total_volume" type="button">Объём</button>
+                <button class="segment watchlist-filter" id="watchlistOnlyBtn" type="button">★ Избранное</button>
               </div>
             </div>
             <div class="table-wrap">
@@ -632,12 +649,12 @@
                 <div class="form-grid">
                   <label>
                     <span>Количество</span>
-                    <input id="amountInput" type="number" min="0" step="any" placeholder="0.5" required />
+                    <input id="amountInput" type="text" inputmode="decimal" placeholder="0.5" required />
                   </label>
                   <label>
                     <span>Рыночная цена</span>
                     <div class="price-input-row">
-                      <input id="costInput" type="number" min="0" step="any" placeholder="42000" required />
+                      <input id="costInput" type="text" inputmode="decimal" placeholder="42000" required />
                       <button id="useQuickMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
                     </div>
                   </label>
@@ -770,6 +787,6 @@
       <button id="acceptCookieConsentBtn" class="primary-button" type="button">Принять</button>
     </div>
 
-    <script src="app.js?v=20260525-portfolio-scroll-panel"></script>
+    <script src="app.js?v=20260529-instant-market-start"></script>
   </body>
 </html>

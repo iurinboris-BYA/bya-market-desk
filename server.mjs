@@ -10,6 +10,7 @@ const BYACADEMY_PUBLIC_CHANNEL = "https://t.me/s/BYAcadem";
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const COINPAPRIKA_BASE = "https://api.coinpaprika.com/v1";
 const NEWS_CACHE_SECONDS = 12 * 60 * 60;
+const MARKET_CACHE_SECONDS = 60;
 const DATA_DIR = process.env.DATA_DIR || join(ROOT, ".data");
 const USERS_FILE = join(DATA_DIR, "registrations.json");
 const RESET_TOKENS_FILE = join(DATA_DIR, "password-reset-tokens.json");
@@ -22,6 +23,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TELEGRAM_BOT_USERNAME = normalizeTelegramBotUsername(process.env.TELEGRAM_BOT_USERNAME || "");
 const TELEGRAM_LINK_TTL_MS = 1000 * 60 * 30;
 const ADMIN_EMAIL = "razor332437666@mail.ru";
+const proxyCache = new Map();
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -410,6 +412,18 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/coingecko/markets") {
       const apiUrl = new URL(`${COINGECKO_BASE}/coins/markets`);
       apiUrl.search = url.searchParams;
+      const cached = getProxyCache(apiUrl.toString());
+
+      if (cached) {
+        response.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": `public, max-age=${MARKET_CACHE_SECONDS}`,
+          "access-control-allow-origin": "*",
+          "x-bya-cache": "HIT",
+        });
+        response.end(cached);
+        return;
+      }
 
       const apiResponse = await fetch(apiUrl, {
         headers: {
@@ -424,16 +438,31 @@ createServer(async (request, response) => {
 
       response.writeHead(200, {
         "content-type": "application/json; charset=utf-8",
-        "cache-control": "public, max-age=20",
+        "cache-control": `public, max-age=${MARKET_CACHE_SECONDS}`,
         "access-control-allow-origin": "*",
+        "x-bya-cache": "MISS",
       });
-      response.end(await apiResponse.text());
+      const responseText = await apiResponse.text();
+      setProxyCache(apiUrl.toString(), responseText, MARKET_CACHE_SECONDS);
+      response.end(responseText);
       return;
     }
 
     if (url.pathname === "/api/coinpaprika/tickers") {
       const apiUrl = new URL(`${COINPAPRIKA_BASE}/tickers`);
       apiUrl.search = url.searchParams;
+      const cached = getProxyCache(apiUrl.toString());
+
+      if (cached) {
+        response.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": `public, max-age=${MARKET_CACHE_SECONDS}`,
+          "access-control-allow-origin": "*",
+          "x-bya-cache": "HIT",
+        });
+        response.end(cached);
+        return;
+      }
 
       const apiResponse = await fetch(apiUrl, {
         headers: {
@@ -448,10 +477,13 @@ createServer(async (request, response) => {
 
       response.writeHead(200, {
         "content-type": "application/json; charset=utf-8",
-        "cache-control": "public, max-age=60",
+        "cache-control": `public, max-age=${MARKET_CACHE_SECONDS}`,
         "access-control-allow-origin": "*",
+        "x-bya-cache": "MISS",
       });
-      response.end(await apiResponse.text());
+      const responseText = await apiResponse.text();
+      setProxyCache(apiUrl.toString(), responseText, MARKET_CACHE_SECONDS);
+      response.end(responseText);
       return;
     }
 
@@ -503,6 +535,23 @@ createServer(async (request, response) => {
 }).listen(PORT, "0.0.0.0", () => {
   console.log(`BYA MarketDesk running on http://127.0.0.1:${PORT}/`);
 });
+
+function getProxyCache(key) {
+  const entry = proxyCache.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    proxyCache.delete(key);
+    return "";
+  }
+
+  return entry.body;
+}
+
+function setProxyCache(key, body, ttlSeconds) {
+  proxyCache.set(key, {
+    body,
+    expiresAt: Date.now() + ttlSeconds * 1000,
+  });
+}
 
 async function readJsonBody(request) {
   const chunks = [];
