@@ -388,6 +388,7 @@ const state = {
   isSyncingAccountPortfolio: false,
   isLoadingMarketDepth: false,
   isPreviewMarket: false,
+  authMode: "register",
   passwordReset: null,
   nextRefreshAt: null,
   lastUpdated: null,
@@ -825,8 +826,8 @@ function bindEvents() {
       closeAuthModal();
     }
   });
-  elements.authForm.addEventListener("submit", saveUserProfile);
-  elements.authLoginBtn?.addEventListener("click", loginUserProfile);
+  elements.authForm.addEventListener("submit", handleAuthSubmit);
+  elements.authLoginBtn?.addEventListener("click", toggleAuthMode);
   elements.authResetBtn?.addEventListener("click", requestPasswordReset);
   document.querySelectorAll("[data-password-toggle]").forEach((button) => {
     button.addEventListener("click", togglePasswordVisibility);
@@ -1567,6 +1568,9 @@ function handleAuthButton(event) {
 }
 
 function openAuthModal() {
+  if (!state.passwordReset) {
+    state.authMode = "register";
+  }
   setPasswordResetMode(Boolean(state.passwordReset));
   if (state.user) {
     elements.authNameInput.value = state.user.name;
@@ -1584,7 +1588,7 @@ function openAuthModal() {
 
   elements.authModal.hidden = false;
   document.body.classList.add("modal-open");
-  (state.passwordReset ? elements.authNewPasswordInput : elements.authNameInput).focus();
+  (state.passwordReset ? elements.authNewPasswordInput : state.authMode === "login" ? elements.authEmailInput : elements.authNameInput).focus();
 }
 
 function closeAuthModal() {
@@ -1592,19 +1596,48 @@ function closeAuthModal() {
   document.body.classList.remove("modal-open");
 }
 
+function handleAuthSubmit(event) {
+  event.preventDefault();
+
+  if (state.passwordReset) {
+    confirmPasswordReset();
+    return;
+  }
+
+  if (state.authMode === "login") {
+    loginUserProfile();
+    return;
+  }
+
+  saveUserProfile(event);
+}
+
+function toggleAuthMode() {
+  if (state.passwordReset) return;
+
+  state.authMode = state.authMode === "login" ? "register" : "login";
+  setPasswordResetMode(false);
+  (state.authMode === "login" ? elements.authEmailInput : elements.authNameInput).focus();
+}
+
 function setPasswordResetMode(enabled) {
+  const isLoginMode = !enabled && state.authMode === "login";
   elements.authForm?.classList.toggle("password-reset-mode", enabled);
   elements.authNewPasswordLabel.hidden = !enabled;
   elements.authNewPasswordInput.required = enabled;
   elements.authPasswordInput.required = !enabled;
+  elements.authNameInput.required = !enabled && !isLoginMode;
+  elements.authLegalConsent.required = !enabled && !isLoginMode;
+  elements.authNameInput.closest("label").hidden = enabled || isLoginMode;
   elements.authPasswordInput.closest("label").hidden = enabled;
-  elements.authTelegramInput.closest("label").hidden = enabled;
-  elements.authRoleInput.closest("label").hidden = enabled;
-  elements.authLegalConsent.closest("label").hidden = enabled;
+  elements.authTelegramInput.closest("label").hidden = enabled || isLoginMode;
+  elements.authRoleInput.closest("label").hidden = enabled || isLoginMode;
+  elements.authLegalConsent.closest("label").hidden = enabled || isLoginMode;
   elements.authLoginBtn.hidden = enabled;
   elements.authResetBtn.hidden = enabled;
-  document.querySelector("#authTitle").textContent = enabled ? "Новый пароль BYA MarketDesk" : "Регистрация в BYA MarketDesk";
-  elements.authForm.querySelector(".primary-button").textContent = enabled ? "Сохранить новый пароль" : "Зарегистрироваться";
+  document.querySelector("#authTitle").textContent = enabled ? "Новый пароль BYA MarketDesk" : isLoginMode ? "Вход в BYA MarketDesk" : "Регистрация в BYA MarketDesk";
+  elements.authForm.querySelector(".primary-button").textContent = enabled ? "Сохранить новый пароль" : isLoginMode ? "Войти" : "Зарегистрироваться";
+  elements.authLoginBtn.textContent = isLoginMode ? "Зарегистрироваться" : "Войти";
 }
 
 function readPasswordResetFromUrl() {
