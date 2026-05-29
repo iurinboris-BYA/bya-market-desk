@@ -1509,10 +1509,10 @@ function renderUser() {
     elements.accountCard.classList.remove("is-authenticated");
     elements.accountName.textContent = "Гость BYA";
     elements.accountEmail.textContent = "Регистрация откроет сохранение профиля";
-    elements.authBtn.textContent = "Войти / регистрация";
+    elements.authBtn.textContent = "Войти";
     elements.sidebarAuthBtn.textContent = "Регистрация";
     if (elements.focusPortfolioFormBtn) {
-      elements.focusPortfolioFormBtn.textContent = "Войти / добавить";
+      elements.focusPortfolioFormBtn.textContent = "Регистрация / добавить";
     }
     return;
   }
@@ -1551,7 +1551,7 @@ function updateRegisteredPortfolioActionLabel() {
 
 function requireUserForPortfolioAction() {
   if (state.user) return true;
-  openAuthModal();
+  openAuthModal("register");
   showToast("Нужна регистрация", "После регистрации портфель будет сохраняться в аккаунте.", 1);
   return false;
 }
@@ -1564,12 +1564,12 @@ function handleAuthButton(event) {
     return;
   }
 
-  openAuthModal();
+  openAuthModal(event.currentTarget === elements.authBtn ? "login" : "register");
 }
 
-function openAuthModal() {
+function openAuthModal(mode = "register") {
   if (!state.passwordReset) {
-    state.authMode = "register";
+    state.authMode = mode === "login" ? "login" : "register";
   }
   setPasswordResetMode(Boolean(state.passwordReset));
   if (state.user) {
