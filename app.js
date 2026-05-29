@@ -9,6 +9,7 @@ const MARKET_REFRESH_MS = 30000;
 const NEWS_REFRESH_MS = 12 * 60 * 60 * 1000;
 const LIVE_RENDER_MS = 900;
 const DEFAULT_MARKET_LIMIT = 2000;
+const INITIAL_MARKET_LIMIT = 10;
 const DEFAULT_MOVER_LIMIT = 100;
 const NEWS_VISIBLE_COUNT = 12;
 const ADMIN_EMAIL = "razor332437666@mail.ru";
@@ -1049,7 +1050,7 @@ async function updateAuxiliaryMarketData(globalPromise, fearGreedPromise) {
 }
 
 async function fetchMarket(options = {}) {
-  const firstPage = await fetchMarketPage(1);
+  const firstPage = await fetchMarketPage(1, INITIAL_MARKET_LIMIT);
 
   if (!Array.isArray(firstPage) || !firstPage.length) {
     throw new Error("Market data unavailable");
@@ -1101,10 +1102,10 @@ async function loadRemainingMarketDepth(firstPage = []) {
 
   try {
     const pages = Math.ceil(state.marketLimit / MARKET_PAGE_SIZE);
-    const pagesData = [firstPage];
+    const pagesData = [];
 
-    for (let index = 1; index < pages; index += 1) {
-      await sleep(MARKET_PAGE_DELAY_MS);
+    for (let index = 0; index < pages; index += 1) {
+      await sleep(index === 0 ? 120 : MARKET_PAGE_DELAY_MS);
       const pageData = await fetchMarketPage(index + 1);
       pagesData.push(pageData);
 
@@ -1184,12 +1185,12 @@ function saveMarketSnapshot() {
   }
 }
 
-async function fetchMarketPage(page) {
+async function fetchMarketPage(page, perPage = MARKET_PAGE_SIZE) {
   const url = new URL(MARKET_API_URL, window.location.origin);
   url.search = new URLSearchParams({
     vs_currency: state.currency,
     order: "market_cap_desc",
-    per_page: String(MARKET_PAGE_SIZE),
+    per_page: String(perPage),
     page: String(page),
     sparkline: "true",
     price_change_percentage: "1h,7d,30d,1y",
