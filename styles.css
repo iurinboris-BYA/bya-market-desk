@@ -4198,12 +4198,19 @@ tbody tr:hover {
 
 .auth-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.42fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  min-width: 0;
 }
 
 .auth-actions button {
+  min-width: 0;
   width: 100%;
+  white-space: normal;
+}
+
+.auth-actions .primary-button {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1100px) {
