@@ -673,7 +673,7 @@ function bindEvents() {
     if (!validatePortfolioForm("quick")) return;
     addPortfolioPosition("quick");
   });
-  elements.useQuickMarketPriceBtn.addEventListener("click", useQuickMarketPrice);
+  elements.useQuickMarketPriceBtn?.addEventListener("click", useQuickMarketPrice);
 
   elements.portfolioPageForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -684,8 +684,8 @@ function bindEvents() {
 
   elements.portfolioPageCoinSelect.addEventListener("change", () => {
     syncPortfolioCoinSearchToSelection();
-    state.portfolioPagePriceSource = "market";
-    setPortfolioPageMarketPriceFromSelection({ force: true });
+    elements.portfolioPageCostInput.value = "";
+    state.portfolioPagePriceSource = "manual";
     updatePortfolioMarketPriceHint();
     recalculatePortfolioAmount("coin");
   });
@@ -702,7 +702,7 @@ function bindEvents() {
     state.quickPortfolioPriceSource = "manual";
   });
   elements.portfolioPageNoteInput.addEventListener("input", updatePortfolioNoteCounter);
-  elements.useMarketPriceBtn.addEventListener("click", useCurrentMarketPrice);
+  elements.useMarketPriceBtn?.addEventListener("click", useCurrentMarketPrice);
   elements.closePortfolioCoinBtn.addEventListener("click", closePortfolioCoinModal);
   elements.portfolioCoinModal.addEventListener("click", (event) => {
     if (event.target === elements.portfolioCoinModal) {
@@ -1108,7 +1108,7 @@ function validatePortfolioForm(source) {
   }
 
   if (cost <= 0) {
-    costInput.setCustomValidity("Рыночная цена ещё не определилась. Обновите котировки или выберите актив заново.");
+    costInput.setCustomValidity("Введите цену входа вручную.");
   }
 
   if (!form.checkValidity()) {
@@ -3010,7 +3010,8 @@ function handlePortfolioCoinSearchInput() {
   elements.portfolioPageCoinSearchInput.setCustomValidity("");
   renderPortfolioPageCoinOptions(elements.portfolioPageCoinSearchInput.value);
   renderPortfolioPageCoinDropdown();
-  setPortfolioPageMarketPriceFromSelection();
+  elements.portfolioPageCostInput.value = "";
+  state.portfolioPagePriceSource = "manual";
   updatePortfolioMarketPriceHint();
   recalculatePortfolioAmount("coin");
 }
@@ -3080,8 +3081,8 @@ function selectPortfolioPageCoin(coinId) {
   elements.portfolioPageCoinSearchInput.setCustomValidity("");
   syncPortfolioCoinSearchToSelection();
   hidePortfolioPageCoinDropdown();
-  state.portfolioPagePriceSource = "market";
-  setPortfolioPageMarketPriceFromSelection({ force: true });
+  elements.portfolioPageCostInput.value = "";
+  state.portfolioPagePriceSource = "manual";
   updatePortfolioMarketPriceHint();
   recalculatePortfolioAmount("coin");
 }
@@ -3219,13 +3220,12 @@ function selectPortfolioCoin(coinId) {
   if (!coin) {
     return;
   }
-  const marketPrice = getQuickCoinPrice(coin);
 
   state.quickPortfolioCoinId = coin.id;
-  state.quickPortfolioPriceSource = "market";
+  state.quickPortfolioPriceSource = "manual";
   elements.coinSearchInput.value = `${coin.name} (${coin.symbol.toUpperCase()})`;
   elements.coinSearchInput.setCustomValidity("");
-  elements.costInput.value = marketPrice > 0 ? formatPriceInputValue(marketPrice) : "";
+  elements.costInput.value = "";
   elements.costInput.setCustomValidity("");
   hideCoinSearchDropdown();
   elements.amountInput.focus();

@@ -349,10 +349,7 @@
                 </label>
                 <label>
                   <span>Цена актива</span>
-                  <div class="price-input-row">
-                    <input id="portfolioPageCostInput" type="text" inputmode="decimal" placeholder="42000" required />
-                    <button id="useMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
-                  </div>
+                  <input id="portfolioPageCostInput" type="text" inputmode="decimal" placeholder="42000" required />
                 </label>
                 <label>
                   <span>Дата покупки</span>
@@ -374,7 +371,7 @@
                 <div class="portfolio-calculation-preview">
                   <span>Итог</span>
                   <strong id="portfolioAddPreview">Укажи сумму или количество</strong>
-                  <small>Поля заполняются вручную. Кнопка «Рынок» подставляет текущую цену актива.</small>
+                  <small>Укажите количество и цену входа вручную.</small>
                 </div>
                 <button class="primary-button" type="submit">Добавить позицию</button>
               </form>
@@ -655,11 +652,8 @@
                     <input id="amountInput" type="text" inputmode="decimal" placeholder="0.5" required />
                   </label>
                   <label>
-                    <span>Рыночная цена</span>
-                    <div class="price-input-row">
-                      <input id="costInput" type="text" inputmode="decimal" placeholder="42000" required />
-                      <button id="useQuickMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
-                    </div>
+                    <span>Цена входа</span>
+                    <input id="costInput" type="text" inputmode="decimal" placeholder="42000" required />
                   </label>
                 </div>
                 <button type="submit" class="primary-button">Добавить позицию</button>
@@ -790,6 +784,6 @@
       <button id="acceptCookieConsentBtn" class="primary-button" type="button">Принять</button>
     </div>
 
-    <script src="app.js?v=20260531-manual-entry-prices"></script>
+    <script src="app.js?v=20260531-manual-only-entry-price"></script>
   </body>
 </html>
