@@ -9,14 +9,14 @@ const MARKET_REFRESH_MS = 30000;
 const NEWS_REFRESH_MS = 12 * 60 * 60 * 1000;
 const LIVE_RENDER_MS = 900;
 const DEFAULT_MARKET_LIMIT = 2000;
-const INITIAL_MARKET_LIMIT = 10;
+const MARKET_PAGE_SIZE = 250;
+const INITIAL_MARKET_LIMIT = MARKET_PAGE_SIZE;
 const DEFAULT_MOVER_LIMIT = 100;
 const NEWS_VISIBLE_COUNT = 12;
 const ADMIN_EMAIL = "razor332437666@mail.ru";
 const ALTSEASON_SAMPLE_LIMIT = 100;
 const VOLUME_ACCUMULATION_LIMIT = 200;
 const VOLUME_ACCUMULATION_VISIBLE_COUNT = 20;
-const MARKET_PAGE_SIZE = 250;
 const MARKET_PAGE_DELAY_MS = 650;
 const MARKET_PAGE_RETRY_DELAY_MS = 1800;
 const MOVERS_VISIBLE_COUNT = 30;
@@ -382,6 +382,8 @@ const state = {
   portfolioChartRenderedPoints: [],
   portfolioChartLastEntries: [],
   portfolioChartHoverIndex: null,
+  portfolioPagePriceSource: "market",
+  quickPortfolioPriceSource: "market",
   isRefreshing: false,
   accountSyncTimer: null,
   isApplyingAccountPortfolio: false,
@@ -680,7 +682,8 @@ function bindEvents() {
 
   elements.portfolioPageCoinSelect.addEventListener("change", () => {
     syncPortfolioCoinSearchToSelection();
-    setPortfolioPageMarketPriceFromSelection();
+    state.portfolioPagePriceSource = "market";
+    setPortfolioPageMarketPriceFromSelection({ force: true });
     updatePortfolioMarketPriceHint();
     recalculatePortfolioAmount("coin");
   });
@@ -689,7 +692,13 @@ function bindEvents() {
   elements.portfolioPageCoinSearchInput?.addEventListener("keydown", handlePortfolioPageCoinKeydown);
   elements.portfolioPageAmountInput.addEventListener("input", () => recalculatePortfolioAmount("amount"));
   elements.portfolioPageTotalInput.addEventListener("input", () => recalculatePortfolioAmount("total"));
-  elements.portfolioPageCostInput.addEventListener("input", () => recalculatePortfolioAmount("price"));
+  elements.portfolioPageCostInput.addEventListener("input", () => {
+    state.portfolioPagePriceSource = "manual";
+    recalculatePortfolioAmount("price");
+  });
+  elements.costInput.addEventListener("input", () => {
+    state.quickPortfolioPriceSource = "manual";
+  });
   elements.portfolioPageNoteInput.addEventListener("input", updatePortfolioNoteCounter);
   elements.useMarketPriceBtn.addEventListener("click", useCurrentMarketPrice);
   elements.closePortfolioCoinBtn.addEventListener("click", closePortfolioCoinModal);
@@ -1183,6 +1192,10 @@ async function fetchMarket(options = {}) {
     loadRemainingMarketDepth(firstPage);
   }
 
+  if (options.loadDepth === false && state.coins.length > firstPage.length) {
+    return mergeMarketSources(firstPage, state.coins).slice(0, state.marketLimit);
+  }
+
   return firstPage.slice(0, state.marketLimit);
 }
 
@@ -1223,12 +1236,23 @@ async function loadRemainingMarketDepth(firstPage = []) {
 
   try {
     const pages = Math.ceil(state.marketLimit / MARKET_PAGE_SIZE);
-    const pagesData = [];
+    const pagesData = [Array.isArray(firstPage) ? firstPage : []];
 
-    for (let index = 0; index < pages; index += 1) {
-      await sleep(index === 0 ? 120 : MARKET_PAGE_DELAY_MS);
-      const pageData = await fetchMarketPage(index + 1);
+    for (let page = 2; page <= pages; page += 1) {
+      await sleep(MARKET_PAGE_DELAY_MS);
+      const pageData = await fetchMarketPage(page);
       pagesData.push(pageData);
+
+      const partialCoins = pagesData.flat().slice(0, state.marketLimit);
+      if (partialCoins.length > state.coins.length) {
+        state.coins = partialCoins;
+        state.usingFallback = false;
+        state.isPreviewMarket = false;
+        state.lastUpdated = new Date();
+        applyFilters();
+        renderAll();
+        saveMarketSnapshot();
+      }
 
       if (!Array.isArray(pageData) || pageData.length < MARKET_PAGE_SIZE) {
         break;
@@ -1236,10 +1260,11 @@ async function loadRemainingMarketDepth(firstPage = []) {
     }
 
     const geckoCoins = pagesData.flat().slice(0, state.marketLimit);
-    const marketCoins =
-      geckoCoins.length >= state.marketLimit
-        ? geckoCoins
-        : mergeMarketSources(geckoCoins, await fetchPaprikaMarket()).slice(0, state.marketLimit);
+    let marketCoins = geckoCoins;
+
+    if (geckoCoins.length < state.marketLimit) {
+      marketCoins = mergeMarketSources(geckoCoins, await fetchPaprikaMarket()).slice(0, state.marketLimit);
+    }
 
     if (!marketCoins.length) return;
 
@@ -1256,6 +1281,25 @@ async function loadRemainingMarketDepth(firstPage = []) {
     saveMarketSnapshot();
   } catch (error) {
     console.warn("Market depth load failed", error);
+
+    try {
+      const marketCoins = mergeMarketSources(state.coins, await fetchPaprikaMarket()).slice(0, state.marketLimit);
+      if (marketCoins.length > state.coins.length) {
+        state.coins = marketCoins;
+        state.usingFallback = false;
+        state.isPreviewMarket = false;
+        state.lastUpdated = new Date();
+        applyFilters();
+        repairFallbackPortfolioEntryPrices();
+        seedPortfolioValueHistoryFromEvents();
+        prunePassivePortfolioValueHistory();
+        renderAll();
+        setupLiveTickerStream();
+        saveMarketSnapshot();
+      }
+    } catch (fallbackError) {
+      console.warn("Paprika market depth fallback failed", fallbackError);
+    }
   } finally {
     state.isLoadingMarketDepth = false;
   }
@@ -1811,6 +1855,7 @@ function openPortfolioCoinModal() {
   elements.portfolioPageTotalInput.value = "";
   elements.portfolioPageCostInput.value = "";
   elements.portfolioPageNoteInput.value = "";
+  state.portfolioPagePriceSource = "market";
   if (elements.portfolioPageCoinSearchInput) {
     elements.portfolioPageCoinSearchInput.value = "";
     elements.portfolioPageCoinSearchInput.setCustomValidity("");
@@ -2330,12 +2375,16 @@ function showToast(title, message, value = 0) {
 window.showToast = showToast;
 
 function useCurrentMarketPrice() {
-  if (setPortfolioPageMarketPriceFromSelection({ report: true, focus: true })) {
+  if (setPortfolioPageMarketPriceFromSelection({ force: true, report: true, focus: true })) {
     return;
   }
 }
 
 function setPortfolioPageMarketPriceFromSelection(options = {}) {
+  if (state.portfolioPagePriceSource === "manual" && !options.force) {
+    return false;
+  }
+
   const coin = findCoin(elements.portfolioPageCoinSelect.value);
   const marketPrice = getCoinMarketPrice(coin);
   if (!marketPrice) {
@@ -2348,6 +2397,7 @@ function setPortfolioPageMarketPriceFromSelection(options = {}) {
 
   elements.portfolioPageCostInput.value = formatPriceInputValue(marketPrice);
   elements.portfolioPageCostInput.setCustomValidity("");
+  state.portfolioPagePriceSource = "market";
   recalculatePortfolioAmount("price");
   if (options.focus) {
     elements.portfolioPageCostInput.focus();
@@ -2368,6 +2418,7 @@ function useQuickMarketPrice() {
 
   elements.costInput.value = formatPriceInputValue(marketPrice);
   elements.costInput.setCustomValidity("");
+  state.quickPortfolioPriceSource = "market";
   elements.costInput.focus();
 }
 
@@ -2893,7 +2944,8 @@ function getPortfolioPageCoinMatches(query = "") {
     const symbol = coin.symbol.toLowerCase();
     const name = coin.name.toLowerCase();
     const id = coin.id.toLowerCase();
-    return symbol.includes(normalizedQuery) || name.includes(normalizedQuery) || id.includes(normalizedQuery);
+    const label = getPortfolioPageCoinLabel(coin).toLowerCase();
+    return symbol.includes(normalizedQuery) || name.includes(normalizedQuery) || id.includes(normalizedQuery) || label.includes(normalizedQuery);
   });
 }
 
@@ -2992,7 +3044,8 @@ function selectPortfolioPageCoin(coinId) {
   elements.portfolioPageCoinSearchInput.setCustomValidity("");
   syncPortfolioCoinSearchToSelection();
   hidePortfolioPageCoinDropdown();
-  setPortfolioPageMarketPriceFromSelection();
+  state.portfolioPagePriceSource = "market";
+  setPortfolioPageMarketPriceFromSelection({ force: true });
   updatePortfolioMarketPriceHint();
   recalculatePortfolioAmount("coin");
 }
@@ -3133,6 +3186,7 @@ function selectPortfolioCoin(coinId) {
   const marketPrice = getQuickCoinPrice(coin);
 
   state.quickPortfolioCoinId = coin.id;
+  state.quickPortfolioPriceSource = "market";
   elements.coinSearchInput.value = `${coin.name} (${coin.symbol.toUpperCase()})`;
   elements.coinSearchInput.setCustomValidity("");
   elements.costInput.value = marketPrice > 0 ? formatPriceInputValue(marketPrice) : "";
@@ -3143,6 +3197,7 @@ function selectPortfolioCoin(coinId) {
 
 function handleQuickCoinSearchInput() {
   state.quickPortfolioCoinId = "";
+  state.quickPortfolioPriceSource = "market";
   elements.costInput.value = "";
   renderCoinSearchDropdown();
 }
@@ -6407,11 +6462,12 @@ function updateCoinFromTicker(pairSymbol, price, change24) {
   const selectedPageCoin = findCoin(elements.portfolioPageCoinSelect?.value);
   if (selectedPageCoin?.symbol?.toLowerCase() === symbol) {
     updatePortfolioMarketPriceHint();
+    setPortfolioPageMarketPriceFromSelection();
     recalculatePortfolioAmount("market-update");
   }
 
   const selectedQuickCoin = findCoin(state.quickPortfolioCoinId);
-  if (selectedQuickCoin?.symbol?.toLowerCase() === symbol) {
+  if (selectedQuickCoin?.symbol?.toLowerCase() === symbol && state.quickPortfolioPriceSource === "market") {
     elements.costInput.value = formatPriceInputValue(price);
   }
 
