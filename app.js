@@ -382,8 +382,8 @@ const state = {
   portfolioChartRenderedPoints: [],
   portfolioChartLastEntries: [],
   portfolioChartHoverIndex: null,
-  portfolioPagePriceSource: "market",
-  quickPortfolioPriceSource: "market",
+  portfolioPagePriceSource: "manual",
+  quickPortfolioPriceSource: "manual",
   closePositionPriceSource: "market",
   isRefreshing: false,
   accountSyncTimer: null,
@@ -1864,7 +1864,7 @@ function openPortfolioCoinModal() {
   elements.portfolioPageTotalInput.value = "";
   elements.portfolioPageCostInput.value = "";
   elements.portfolioPageNoteInput.value = "";
-  state.portfolioPagePriceSource = "market";
+  state.portfolioPagePriceSource = "manual";
   if (elements.portfolioPageCoinSearchInput) {
     elements.portfolioPageCoinSearchInput.value = "";
     elements.portfolioPageCoinSearchInput.setCustomValidity("");
@@ -3233,7 +3233,7 @@ function selectPortfolioCoin(coinId) {
 
 function handleQuickCoinSearchInput() {
   state.quickPortfolioCoinId = "";
-  state.quickPortfolioPriceSource = "market";
+  state.quickPortfolioPriceSource = "manual";
   elements.costInput.value = "";
   renderCoinSearchDropdown();
 }

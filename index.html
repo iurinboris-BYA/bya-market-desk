@@ -349,7 +349,10 @@
                 </label>
                 <label>
                   <span>Цена актива</span>
-                  <input id="portfolioPageCostInput" type="text" inputmode="decimal" placeholder="42000" required />
+                  <div class="price-input-row">
+                    <input id="portfolioPageCostInput" type="text" inputmode="decimal" placeholder="42000" required />
+                    <button id="useMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
+                  </div>
                 </label>
                 <label>
                   <span>Дата покупки</span>
@@ -653,7 +656,10 @@
                   </label>
                   <label>
                     <span>Цена входа</span>
-                    <input id="costInput" type="text" inputmode="decimal" placeholder="42000" required />
+                    <div class="price-input-row">
+                      <input id="costInput" type="text" inputmode="decimal" placeholder="42000" required />
+                      <button id="useQuickMarketPriceBtn" class="subtle-button" type="button">Рынок</button>
+                    </div>
                   </label>
                 </div>
                 <button type="submit" class="primary-button">Добавить позицию</button>
@@ -784,6 +790,6 @@
       <button id="acceptCookieConsentBtn" class="primary-button" type="button">Принять</button>
     </div>
 
-    <script src="app.js?v=20260531-fixed-entry-price-display"></script>
+    <script src="app.js?v=20260531-market-button-only-entry-price"></script>
   </body>
 </html>
