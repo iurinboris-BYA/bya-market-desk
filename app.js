@@ -2433,7 +2433,7 @@ function setPortfolioPageMarketPriceFromSelection(options = {}) {
 
   elements.portfolioPageCostInput.value = formatPriceInputValue(marketPrice);
   elements.portfolioPageCostInput.setCustomValidity("");
-  state.portfolioPagePriceSource = "market";
+  state.portfolioPagePriceSource = "manual";
   recalculatePortfolioAmount("price");
   if (options.focus) {
     elements.portfolioPageCostInput.focus();
@@ -2454,7 +2454,7 @@ function useQuickMarketPrice() {
 
   elements.costInput.value = formatPriceInputValue(marketPrice);
   elements.costInput.setCustomValidity("");
-  state.quickPortfolioPriceSource = "market";
+  state.quickPortfolioPriceSource = "manual";
   elements.costInput.focus();
 }
 
