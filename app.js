@@ -382,8 +382,6 @@ const state = {
   portfolioChartRenderedPoints: [],
   portfolioChartLastEntries: [],
   portfolioChartHoverIndex: null,
-  portfolioPagePriceSource: "manual",
-  quickPortfolioPriceSource: "manual",
   closePositionPriceSource: "market",
   isRefreshing: false,
   accountSyncTimer: null,
@@ -411,7 +409,6 @@ const elements = {
   portfolioForm: document.querySelector("#portfolioForm"),
   amountInput: document.querySelector("#amountInput"),
   costInput: document.querySelector("#costInput"),
-  useQuickMarketPriceBtn: document.querySelector("#useQuickMarketPriceBtn"),
   portfolioList: document.querySelector("#portfolioList"),
   portfolioPageForm: document.querySelector("#portfolioPageForm"),
   portfolioPageCoinSearchInput: document.querySelector("#portfolioPageCoinSearchInput"),
@@ -440,7 +437,6 @@ const elements = {
   closePositionPreview: document.querySelector("#closePositionPreview"),
   closePositionHint: document.querySelector("#closePositionHint"),
   closePortfolioCoinBtn: document.querySelector("#closePortfolioCoinBtn"),
-  useMarketPriceBtn: document.querySelector("#useMarketPriceBtn"),
   portfolioMarketPriceHint: document.querySelector("#portfolioMarketPriceHint"),
   portfolioAddPreview: document.querySelector("#portfolioAddPreview"),
   portfolioNoteCounter: document.querySelector("#portfolioNoteCounter"),
@@ -673,8 +669,6 @@ function bindEvents() {
     if (!validatePortfolioForm("quick")) return;
     addPortfolioPosition("quick");
   });
-  elements.useQuickMarketPriceBtn?.addEventListener("click", useQuickMarketPrice);
-
   elements.portfolioPageForm.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!requireUserForPortfolioAction()) return;
@@ -685,7 +679,6 @@ function bindEvents() {
   elements.portfolioPageCoinSelect.addEventListener("change", () => {
     syncPortfolioCoinSearchToSelection();
     elements.portfolioPageCostInput.value = "";
-    state.portfolioPagePriceSource = "manual";
     updatePortfolioMarketPriceHint();
     recalculatePortfolioAmount("coin");
   });
@@ -695,14 +688,9 @@ function bindEvents() {
   elements.portfolioPageAmountInput.addEventListener("input", () => recalculatePortfolioAmount("amount"));
   elements.portfolioPageTotalInput.addEventListener("input", () => recalculatePortfolioAmount("total"));
   elements.portfolioPageCostInput.addEventListener("input", () => {
-    state.portfolioPagePriceSource = "manual";
     recalculatePortfolioAmount("price");
   });
-  elements.costInput.addEventListener("input", () => {
-    state.quickPortfolioPriceSource = "manual";
-  });
   elements.portfolioPageNoteInput.addEventListener("input", updatePortfolioNoteCounter);
-  elements.useMarketPriceBtn?.addEventListener("click", useCurrentMarketPrice);
   elements.closePortfolioCoinBtn.addEventListener("click", closePortfolioCoinModal);
   elements.portfolioCoinModal.addEventListener("click", (event) => {
     if (event.target === elements.portfolioCoinModal) {
@@ -1864,7 +1852,6 @@ function openPortfolioCoinModal() {
   elements.portfolioPageTotalInput.value = "";
   elements.portfolioPageCostInput.value = "";
   elements.portfolioPageNoteInput.value = "";
-  state.portfolioPagePriceSource = "manual";
   if (elements.portfolioPageCoinSearchInput) {
     elements.portfolioPageCoinSearchInput.value = "";
     elements.portfolioPageCoinSearchInput.setCustomValidity("");
@@ -2409,54 +2396,6 @@ function showToast(title, message, value = 0) {
 }
 
 window.showToast = showToast;
-
-function useCurrentMarketPrice() {
-  if (setPortfolioPageMarketPriceFromSelection({ force: true, report: true, focus: true })) {
-    return;
-  }
-}
-
-function setPortfolioPageMarketPriceFromSelection(options = {}) {
-  if (state.portfolioPagePriceSource === "manual" && !options.force) {
-    return false;
-  }
-
-  const coin = findCoin(elements.portfolioPageCoinSelect.value);
-  const marketPrice = getCoinMarketPrice(coin);
-  if (!marketPrice) {
-    if (options.report) {
-      elements.portfolioPageCostInput.setCustomValidity("Текущая цена пока недоступна. Введите цену актива вручную.");
-      elements.portfolioPageCostInput.reportValidity();
-    }
-    return false;
-  }
-
-  elements.portfolioPageCostInput.value = formatPriceInputValue(marketPrice);
-  elements.portfolioPageCostInput.setCustomValidity("");
-  state.portfolioPagePriceSource = "manual";
-  recalculatePortfolioAmount("price");
-  if (options.focus) {
-    elements.portfolioPageCostInput.focus();
-  }
-  return true;
-}
-
-function useQuickMarketPrice() {
-  const coinId = getCoinIdFromPortfolioSearch();
-  const coin = findCoin(coinId);
-  const marketPrice = getQuickCoinPrice(coin);
-
-  if (!marketPrice) {
-    elements.coinSearchInput.setCustomValidity("Выберите монету, чтобы подставить рыночную цену.");
-    elements.coinSearchInput.reportValidity();
-    return;
-  }
-
-  elements.costInput.value = formatPriceInputValue(marketPrice);
-  elements.costInput.setCustomValidity("");
-  state.quickPortfolioPriceSource = "manual";
-  elements.costInput.focus();
-}
 
 function updatePortfolioMarketPriceHint() {
   const coin = findCoin(elements.portfolioPageCoinSelect.value);
@@ -3011,7 +2950,6 @@ function handlePortfolioCoinSearchInput() {
   renderPortfolioPageCoinOptions(elements.portfolioPageCoinSearchInput.value);
   renderPortfolioPageCoinDropdown();
   elements.portfolioPageCostInput.value = "";
-  state.portfolioPagePriceSource = "manual";
   updatePortfolioMarketPriceHint();
   recalculatePortfolioAmount("coin");
 }
@@ -3082,7 +3020,6 @@ function selectPortfolioPageCoin(coinId) {
   syncPortfolioCoinSearchToSelection();
   hidePortfolioPageCoinDropdown();
   elements.portfolioPageCostInput.value = "";
-  state.portfolioPagePriceSource = "manual";
   updatePortfolioMarketPriceHint();
   recalculatePortfolioAmount("coin");
 }
@@ -3222,7 +3159,6 @@ function selectPortfolioCoin(coinId) {
   }
 
   state.quickPortfolioCoinId = coin.id;
-  state.quickPortfolioPriceSource = "manual";
   elements.coinSearchInput.value = `${coin.name} (${coin.symbol.toUpperCase()})`;
   elements.coinSearchInput.setCustomValidity("");
   elements.costInput.value = "";
@@ -3233,7 +3169,6 @@ function selectPortfolioCoin(coinId) {
 
 function handleQuickCoinSearchInput() {
   state.quickPortfolioCoinId = "";
-  state.quickPortfolioPriceSource = "manual";
   elements.costInput.value = "";
   renderCoinSearchDropdown();
 }
