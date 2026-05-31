@@ -530,7 +530,10 @@ createServer(async (request, response) => {
     }
 
     const file = await readFile(filePath);
-    response.writeHead(200, { "content-type": contentTypes[extname(filePath)] || "application/octet-stream" });
+    response.writeHead(200, {
+      "content-type": contentTypes[extname(filePath)] || "application/octet-stream",
+      "cache-control": "no-store",
+    });
     response.end(file);
   } catch (error) {
     response.writeHead(url.pathname.startsWith("/api/") ? 502 : 404, {
