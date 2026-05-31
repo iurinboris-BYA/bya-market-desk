@@ -1976,7 +1976,7 @@ function repairFallbackPortfolioEntryPrices() {
 }
 
 function getPortfolioEntryCost(position) {
-  return Number(position?.cost) || 0;
+  return Number(position?.entryPrice) || Number(position?.cost) || 0;
 }
 
 function persistPortfolioBooks(options = {}) {
@@ -3294,8 +3294,9 @@ function renderPortfolio() {
   elements.portfolioList.innerHTML = state.portfolio
     .map((position) => {
       const coin = findCoin(position.coinId);
+      const entryPrice = getPortfolioEntryCost(position, coin);
       const currentValue = coin ? coin.current_price * position.amount : 0;
-      const costValue = getPortfolioEntryCost(position, coin) * position.amount;
+      const costValue = entryPrice * position.amount;
       const pnl = currentValue - costValue;
       const pnlPercent = costValue > 0 ? (pnl / costValue) * 100 : 0;
       const dayMove = currentValue * ((coin?.price_change_percentage_24h || 0) / 100);
@@ -3311,7 +3312,7 @@ function renderPortfolio() {
             <button class="remove-button" type="button" data-remove="${position.id}" title="Удалить">×</button>
           </div>
           <div class="asset-card-row">
-            <small>${formatAmount(position.amount)} ${symbol} @ ${formatMoney(position.cost)}</small>
+            <small>Цена покупки: ${formatMoney(entryPrice)} · ${formatAmount(position.amount)} ${symbol}</small>
             <strong>${formatMoney(currentValue)}</strong>
           </div>
           <div class="asset-card-row">
@@ -3873,8 +3874,8 @@ function portfolioPageRow(item, index) {
   const hasRepeats = getPortfolioCoinCount(item.coinId, getPortfolioScopePositions()) > 1;
   const coinIdAttribute = escapeHtml(item.coinId);
   const entryDetail = item.collapsed
-    ? `${formatAmount(item.amount)} ${symbol} · средняя ${formatMoney(item.cost)} · ${formatEntryCount(item.lots)}`
-    : `${formatAmount(item.amount)} ${symbol} · вход ${formatMoney(item.cost)}`;
+    ? `${formatAmount(item.amount)} ${symbol} · средняя покупка ${formatMoney(item.cost)} · ${formatEntryCount(item.lots)}`
+    : `${formatAmount(item.amount)} ${symbol} · покупка ${formatMoney(item.cost)}`;
   const noteDetail = item.note ? `<span class="position-note">${escapeHtml(item.note)}</span>` : "";
   const groupAction = item.collapsed
     ? `<button class="group-position-action ungroup" type="button" data-ungroup-coin="${coinIdAttribute}" onclick="ungroupPortfolioCoin('${coinIdAttribute}')" title="Разъединить" aria-label="Разъединить">↺</button>`
@@ -3909,9 +3910,9 @@ function portfolioPageRow(item, index) {
       <td>${walletCell}</td>
       <td>
         <strong class="portfolio-price-pill">${formatMoney(item.coin.current_price)}</strong>
-        <small>рыночная сейчас</small>
+        <small>рынок сейчас</small>
       </td>
-      <td><strong>${formatMoney(item.cost)}</strong></td>
+      <td><strong>${formatMoney(item.cost)}</strong><small>зафиксировано при покупке</small></td>
       <td><strong class="${changeClass(item.pnl)}">${formatPortfolioDeltaMoney(item.pnl)}</strong></td>
       <td><strong class="${changeClass(item.pnlPercent)}">${formatPercent(item.pnlPercent)}</strong></td>
       <td class="portfolio-row-actions">
@@ -6572,6 +6573,7 @@ function addPortfolioPosition(source = "quick") {
     coinId,
     amount,
     cost,
+    entryPrice: cost,
     wallet: isPage ? elements.portfolioPageWalletSelect?.value || DEFAULT_POSITION_WALLET : DEFAULT_POSITION_WALLET,
     date: isPage ? elements.portfolioPageDateInput.value : new Date().toISOString().slice(0, 10),
     note: isPage ? elements.portfolioPageNoteInput.value.trim() : "",
