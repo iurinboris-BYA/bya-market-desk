@@ -784,6 +784,21 @@
       <button id="acceptCookieConsentBtn" class="primary-button" type="button">Принять</button>
     </div>
 
-    <script src="app.js?v=20260531-manual-entry-price-only"></script>
+    <style>
+      .close-position-modal {
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+      }
+
+      .close-position-modal .primary-button[type="submit"] {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        width: 100%;
+        justify-self: stretch;
+        box-shadow: 0 -12px 24px rgba(255, 255, 255, 0.94), 0 12px 28px rgba(13, 143, 130, 0.22);
+      }
+    </style>
+    <script src="app.js?v=20260601-close-submit-visible"></script>
   </body>
 </html>
