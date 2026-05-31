@@ -6498,13 +6498,7 @@ function updateCoinFromTicker(pairSymbol, price, change24) {
   const selectedPageCoin = findCoin(elements.portfolioPageCoinSelect?.value);
   if (selectedPageCoin?.symbol?.toLowerCase() === symbol) {
     updatePortfolioMarketPriceHint();
-    setPortfolioPageMarketPriceFromSelection();
     recalculatePortfolioAmount("market-update");
-  }
-
-  const selectedQuickCoin = findCoin(state.quickPortfolioCoinId);
-  if (selectedQuickCoin?.symbol?.toLowerCase() === symbol && state.quickPortfolioPriceSource === "market") {
-    elements.costInput.value = formatPriceInputValue(price);
   }
 
   const closingCoin = findCoin(getPendingClosePositions()[0]?.coinId);
