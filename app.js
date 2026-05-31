@@ -384,6 +384,7 @@ const state = {
   portfolioChartHoverIndex: null,
   portfolioPagePriceSource: "market",
   quickPortfolioPriceSource: "market",
+  closePositionPriceSource: "market",
   isRefreshing: false,
   accountSyncTimer: null,
   isApplyingAccountPortfolio: false,
@@ -430,6 +431,7 @@ const elements = {
   closePositionPrice: document.querySelector("#closePositionPrice"),
   closePositionAmount: document.querySelector("#closePositionAmount"),
   closePositionPriceInput: document.querySelector("#closePositionPriceInput"),
+  useCloseMarketPriceBtn: document.querySelector("#useCloseMarketPriceBtn"),
   closePositionPercentInput: document.querySelector("#closePositionPercentInput"),
   closePositionPercentRange: document.querySelector("#closePositionPercentRange"),
   closePositionPercentValue: document.querySelector("#closePositionPercentValue"),
@@ -714,8 +716,15 @@ function bindEvents() {
     }
   });
   elements.closePositionPercentInput.addEventListener("input", () => syncCloseInputs("percent"));
-  elements.closePositionPriceInput?.addEventListener("input", updateClosePositionPreview);
+  elements.closePositionPriceInput?.addEventListener("input", () => {
+    state.closePositionPriceSource = "manual";
+    updateClosePositionPreview();
+  });
   elements.closePositionPriceInput?.addEventListener("focus", () => elements.closePositionPriceInput.select());
+  elements.useCloseMarketPriceBtn?.addEventListener("click", () => {
+    state.closePositionPriceSource = "market";
+    setCloseMarketPriceFromSelection({ force: true, focus: true, report: true });
+  });
   elements.closePositionPercentRange?.addEventListener("input", () => {
     elements.closePositionPercentInput.value = elements.closePositionPercentRange.value;
     syncCloseInputs("percent");
@@ -2186,6 +2195,7 @@ function openPortfolioCloseModal(positionIds) {
   if (!positions.length) return;
 
   state.pendingClosePositionIds = positions.map((position) => position.id);
+  state.closePositionPriceSource = "market";
   elements.portfolioCloseForm.dataset.closeMode = "percent";
   elements.closePositionPercentInput.value = "100";
   if (elements.closePositionPercentRange) {
@@ -2193,7 +2203,7 @@ function openPortfolioCloseModal(positionIds) {
   }
   updateClosePercentControls(100);
   elements.closePositionAmountInput.value = "";
-  elements.closePositionPriceInput.value = formatPriceInputValue(getDefaultClosePrice(positions));
+  setCloseMarketPriceFromSelection({ force: true });
   elements.portfolioCloseModal.hidden = false;
   document.body.classList.add("modal-open");
   updateClosePositionPreview();
@@ -2203,6 +2213,7 @@ function openPortfolioCloseModal(positionIds) {
 function closePortfolioCloseModal() {
   elements.portfolioCloseModal.hidden = true;
   state.pendingClosePositionIds = [];
+  state.closePositionPriceSource = "market";
   document.body.classList.remove("modal-open");
 }
 
@@ -2214,6 +2225,31 @@ function getDefaultClosePrice(positions) {
   const firstPosition = positions[0];
   const coin = findCoin(firstPosition?.coinId);
   return Number(coin?.current_price) || Number(firstPosition?.cost) || 0;
+}
+
+function setCloseMarketPriceFromSelection(options = {}) {
+  if (state.closePositionPriceSource === "manual" && !options.force) {
+    return false;
+  }
+
+  const positions = getPendingClosePositions();
+  const closePrice = getDefaultClosePrice(positions);
+  if (!closePrice) {
+    if (options.report) {
+      elements.closePositionPriceInput.setCustomValidity("Текущая цена пока недоступна. Введите цену закрытия вручную.");
+      elements.closePositionPriceInput.reportValidity();
+    }
+    return false;
+  }
+
+  elements.closePositionPriceInput.value = formatPriceInputValue(closePrice);
+  elements.closePositionPriceInput.setCustomValidity("");
+  state.closePositionPriceSource = "market";
+  updateClosePositionPreview();
+  if (options.focus) {
+    elements.closePositionPriceInput.focus();
+  }
+  return true;
 }
 
 function getManualClosePrice(positions = getPendingClosePositions()) {
@@ -2339,8 +2375,8 @@ function confirmClosePortfolioPosition() {
   const positions = getPendingClosePositions();
   if (!positions.length) return;
 
-  const { percent } = getCloseRequest(positions);
-  if (percent <= 0) return;
+  const closeRequest = getCloseRequest(positions);
+  if (closeRequest.percent <= 0 || closeRequest.amount <= 0) return;
   const closePrice = getManualClosePrice(positions);
   if (closePrice <= 0) {
     elements.closePositionPriceInput.setCustomValidity("Укажите цену продажи больше нуля.");
@@ -2348,7 +2384,7 @@ function confirmClosePortfolioPosition() {
     return;
   }
   elements.closePositionPriceInput.setCustomValidity("");
-  const result = closePortfolioPositions(positions, percent, closePrice);
+  const result = closePortfolioPositions(positions, closeRequest, closePrice);
   closePortfolioCloseModal();
   if (result) {
     showToast(result.title, result.message, result.pnl);
@@ -6471,6 +6507,11 @@ function updateCoinFromTicker(pairSymbol, price, change24) {
     elements.costInput.value = formatPriceInputValue(price);
   }
 
+  const closingCoin = findCoin(getPendingClosePositions()[0]?.coinId);
+  if (!elements.portfolioCloseModal.hidden && closingCoin?.symbol?.toLowerCase() === symbol) {
+    setCloseMarketPriceFromSelection();
+  }
+
   scheduleLiveRender();
 }
 
@@ -6689,31 +6730,60 @@ function createPortfolioChartExitSnapshot(position, exitedAt, reason = "removed"
   };
 }
 
-function closePortfolioPositions(positions, percent = 100, manualClosePrice = null) {
+function closePortfolioPositions(positions, closeRequestOrPercent = 100, manualClosePrice = null) {
   const closedTime = Date.now();
   const closedAt = new Date(closedTime).toISOString();
-  const closeRatio = clampClosePercent(percent) / 100;
+  const totalAmount = getCloseTotalAmount(positions);
+  const closeRequest =
+    typeof closeRequestOrPercent === "object" && closeRequestOrPercent
+      ? closeRequestOrPercent
+      : {
+          mode: "percent",
+          amount: totalAmount * (clampClosePercent(closeRequestOrPercent) / 100),
+          percent: clampClosePercent(closeRequestOrPercent),
+          totalAmount,
+        };
+  const targetCloseAmount = Math.min(Math.max(Number(closeRequest.amount) || 0, 0), totalAmount);
+  const closeRatio = totalAmount > 0 ? targetCloseAmount / totalAmount : 0;
   const fullyClosedPositionIds = new Set();
   const toastCoin = findCoin(positions[0]?.coinId);
   let totalCloseValue = 0;
   let totalPnl = 0;
+  let remainingAmountToClose = targetCloseAmount;
+
+  if (targetCloseAmount <= 0) {
+    return null;
+  }
+
   recordPortfolioValuePoint("before-close", closedTime - 1);
-  const snapshots = positions.map((position) => {
+  const snapshots = positions
+    .map((position) => {
     const coin = findCoin(position.coinId);
     const entryPrice = getPortfolioEntryCost(position, coin);
     const closePrice = Number(manualClosePrice) > 0 ? Number(manualClosePrice) : Number(coin?.current_price) || entryPrice;
     const originalAmount = Number(position.amount) || 0;
-    const amount = originalAmount * closeRatio;
+    const requestedAmount =
+      closeRequest.mode === "amount"
+        ? Math.min(originalAmount, remainingAmountToClose)
+        : originalAmount * closeRatio;
+    const amount = Math.min(originalAmount, Math.max(0, requestedAmount));
+    remainingAmountToClose = Math.max(0, remainingAmountToClose - amount);
+
+    if (amount <= 0) {
+      return null;
+    }
+
     const pnl = (closePrice - entryPrice) * amount;
     const entryValue = entryPrice * amount;
     const closeValue = closePrice * amount;
     totalCloseValue += closeValue;
     totalPnl += pnl;
 
-    if (closeRatio >= 0.999999) {
+    const remainingAmount = Math.max(originalAmount - amount, 0);
+    if (remainingAmount <= Math.max(originalAmount * 0.000001, 1e-12)) {
       fullyClosedPositionIds.add(position.id);
     } else {
-      position.amount = Math.max(originalAmount - amount, 0);
+      position.amount = remainingAmount;
     }
 
     return {
@@ -6735,7 +6805,12 @@ function closePortfolioPositions(positions, percent = 100, manualClosePrice = nu
       closedAt,
       note: [position.note, closeRatio < 0.999999 ? `Закрыто ${formatPercent(closeRatio * 100)}` : ""].filter(Boolean).join(" · "),
     };
-  });
+  })
+    .filter(Boolean);
+
+  if (!snapshots.length) {
+    return null;
+  }
 
   state.closedPositions = [...snapshots, ...state.closedPositions];
   state.portfolio = state.portfolio.filter((position) => !fullyClosedPositionIds.has(position.id) && Number(position.amount) > 0);
