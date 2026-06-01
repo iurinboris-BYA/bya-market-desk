@@ -2765,22 +2765,27 @@ async function loadAccountPortfolioData() {
 
     const data = await response.json();
     const remote = data.portfolioData;
+    state.isApplyingAccountPortfolio = true;
     if (!hasAccountPortfolioData(remote)) {
+      resetLocalPortfolioDataForAccount();
+      state.isApplyingAccountPortfolio = false;
+      renderAll();
       scheduleAccountPortfolioSync(0);
       return;
     }
 
-    state.isApplyingAccountPortfolio = true;
     if (Array.isArray(remote.portfolioBooks) && remote.portfolioBooks.length) {
-      saveActivePortfolioBook();
-      state.portfolioBooks = mergeByKey(state.portfolioBooks, remote.portfolioBooks.map(createPortfolioBookSnapshot), (item) => item.id);
-      state.activePortfolioBookId = remote.activePortfolioBookId || state.activePortfolioBookId || state.portfolioBooks[0]?.id || "";
+      state.portfolioBooks = remote.portfolioBooks.map(createPortfolioBookSnapshot);
+      state.activePortfolioBookId = remote.activePortfolioBookId || state.portfolioBooks[0]?.id || "";
       ensurePortfolioBooks();
     } else {
-      state.portfolio = mergeByKey(state.portfolio, remote.portfolio, (item) => item.id);
-      state.closedPositions = mergeByKey(state.closedPositions, remote.closedPositions, (item) => item.sourceId || `${item.coinId}-${item.closedAt}-${item.amount}`);
-      state.portfolioChartHistory = mergeByKey(state.portfolioChartHistory, remote.portfolioChartHistory, (item) => item.sourceId || `${item.coinId}-${item.closedAt || item.removedAt}`);
-      state.portfolioValueHistory = mergeByKey(state.portfolioValueHistory, remote.portfolioValueHistory, (item) => `${item.at}-${item.reason}-${item.value}`);
+      state.portfolio = normalizePortfolioCoinReferences(Array.isArray(remote.portfolio) ? remote.portfolio : []);
+      state.closedPositions = normalizePortfolioCoinReferences(Array.isArray(remote.closedPositions) ? remote.closedPositions : []);
+      state.portfolioChartHistory = normalizePortfolioCoinReferences(Array.isArray(remote.portfolioChartHistory) ? remote.portfolioChartHistory : []);
+      state.portfolioValueHistory = Array.isArray(remote.portfolioValueHistory) ? remote.portfolioValueHistory : [];
+      state.portfolioBooks = [];
+      state.activePortfolioBookId = "";
+      ensurePortfolioBooks();
       saveActivePortfolioBook();
     }
     persistPortfolio();
@@ -2795,6 +2800,23 @@ async function loadAccountPortfolioData() {
     state.isApplyingAccountPortfolio = false;
     console.warn("Account portfolio load failed", error);
   }
+}
+
+function resetLocalPortfolioDataForAccount() {
+  state.portfolio = [];
+  state.closedPositions = [];
+  state.portfolioChartHistory = [];
+  state.portfolioValueHistory = [];
+  state.portfolioBooks = [];
+  state.activePortfolioBookId = "";
+  state.groupedPortfolioCoins = new Set();
+  state.portfolioCollapsed = false;
+  state.pendingClosePositionIds = [];
+  state.editingPortfolioPositionId = "";
+  state.openMovePositionId = "";
+  ensurePortfolioBooks();
+  persistActivePortfolioData();
+  persistPortfolioBooks({ sync: false });
 }
 
 function hasAccountPortfolioData(data) {
