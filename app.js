@@ -375,6 +375,7 @@ const state = {
   portfolioReportPeriod: "day",
   activePortfolioWallet: "all",
   pendingClosePositionIds: [],
+  editingPortfolioPositionId: "",
   openMovePositionId: "",
   portfolioChartMode: "line",
   portfolioChartPeriod: "1d",
@@ -675,7 +676,11 @@ function bindEvents() {
     event.preventDefault();
     if (!requireUserForPortfolioAction()) return;
     if (!validatePortfolioForm("page")) return;
-    addPortfolioPosition("page");
+    if (state.editingPortfolioPositionId) {
+      updatePortfolioPositionFromForm();
+    } else {
+      addPortfolioPosition("page");
+    }
   });
 
   elements.portfolioPageCoinSelect.addEventListener("change", () => {
@@ -1848,6 +1853,8 @@ function renderLegalDocuments() {
 }
 
 function openPortfolioCoinModal() {
+  state.editingPortfolioPositionId = "";
+  setPortfolioCoinModalMode("add");
   elements.portfolioCoinModal.hidden = false;
   document.body.classList.add("modal-open");
   elements.portfolioPageAmountInput.value = "";
@@ -1876,7 +1883,54 @@ function openPortfolioCoinModal() {
 function closePortfolioCoinModal() {
   elements.portfolioCoinModal.hidden = true;
   document.body.classList.remove("modal-open");
+  state.editingPortfolioPositionId = "";
+  setPortfolioCoinModalMode("add");
   hidePortfolioPageCoinDropdown();
+}
+
+function setPortfolioCoinModalMode(mode = "add") {
+  const isEdit = mode === "edit";
+  const title = document.querySelector("#portfolioCoinTitle");
+  const submitButton = elements.portfolioPageForm?.querySelector('button[type="submit"]');
+  if (title) {
+    title.textContent = isEdit ? "Редактировать позицию" : "Добавить актив в портфолио";
+  }
+  if (submitButton) {
+    submitButton.textContent = isEdit ? "Сохранить позицию" : "Добавить позицию";
+  }
+}
+
+function openPortfolioEditModal(positionId) {
+  const position = state.portfolio.find((item) => item.id === positionId);
+  const coin = findCoin(position?.coinId);
+  if (!position || !coin) return;
+
+  state.editingPortfolioPositionId = position.id;
+  setPortfolioCoinModalMode("edit");
+  elements.portfolioCoinModal.hidden = false;
+  document.body.classList.add("modal-open");
+
+  renderPortfolioPageCoinOptions(getPortfolioPageCoinLabel(coin));
+  elements.portfolioPageCoinSelect.value = coin.id;
+  elements.portfolioPageCoinSearchInput.value = getPortfolioPageCoinLabel(coin);
+  elements.portfolioPageCoinSearchInput.setCustomValidity("");
+  hidePortfolioPageCoinDropdown();
+
+  const amount = Number(position.amount) || 0;
+  const cost = getPortfolioEntryCost(position, coin);
+  elements.portfolioPageAmountInput.value = amount > 0 ? trimNumber(amount, 8) : "";
+  elements.portfolioPageCostInput.value = cost > 0 ? formatPriceInputValue(cost) : "";
+  elements.portfolioPageTotalInput.value = amount > 0 && cost > 0 ? formatPriceInputValue(amount * cost) : "";
+  elements.portfolioPageDateInput.value = position.date || position.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+  if (elements.portfolioPageWalletSelect) {
+    elements.portfolioPageWalletSelect.value = getPortfolioWalletId(position);
+  }
+  elements.portfolioPageNoteInput.value = position.note || "";
+
+  updatePortfolioMarketPriceHint();
+  updatePortfolioNoteCounter();
+  recalculatePortfolioAmount("edit");
+  elements.portfolioPageAmountInput.focus();
 }
 
 function createPortfolioBookSnapshot(book = {}) {
@@ -1948,6 +2002,7 @@ function loadActivePortfolioBook() {
   state.groupedPortfolioCoins = new Set();
   state.portfolioCollapsed = false;
   state.pendingClosePositionIds = [];
+  state.editingPortfolioPositionId = "";
   state.openMovePositionId = "";
 }
 
@@ -3735,6 +3790,12 @@ function handlePortfolioTableAction(event) {
     return;
   }
 
+  const editButton = event.target.closest("[data-edit]");
+  if (editButton) {
+    openPortfolioEditModal(editButton.dataset.edit);
+    return;
+  }
+
   const closeButton = event.target.closest("[data-close]");
   if (closeButton) {
     openPortfolioCloseModal(closeButton.dataset.close);
@@ -3822,6 +3883,9 @@ function portfolioPageRow(item, index) {
       : "";
   const removeAttribute = item.collapsed ? `data-remove-group="${item.coin.id}"` : `data-remove="${item.id}"`;
   const closeAttribute = item.collapsed ? `data-close-group="${item.coin.id}"` : `data-close="${item.id}"`;
+  const editAction = item.collapsed
+    ? ""
+    : `<button class="group-position-action edit-position-action" type="button" data-edit="${item.id}" title="Редактировать" aria-label="Редактировать позицию">&#9998;</button>`;
   const moveAction = item.collapsed
     ? ""
     : `<span class="portfolio-move-wrap">
@@ -3858,6 +3922,7 @@ function portfolioPageRow(item, index) {
         <button class="close-position-button" type="button" ${closeAttribute}>Закрыть</button>
         ${moveAction}
         <span class="portfolio-icon-actions">
+          ${editAction}
           ${groupAction}
           <button class="remove-button" type="button" ${removeAttribute} title="Удалить">×</button>
         </span>
@@ -6619,6 +6684,56 @@ function addPortfolioPosition(source = "quick") {
   );
 }
 
+function updatePortfolioPositionFromForm() {
+  const position = state.portfolio.find((item) => item.id === state.editingPortfolioPositionId);
+  if (!position) {
+    state.editingPortfolioPositionId = "";
+    return;
+  }
+
+  let amount = parsePortfolioInputNumber(elements.portfolioPageAmountInput.value);
+  const total = parsePortfolioInputNumber(elements.portfolioPageTotalInput.value);
+  const cost = parsePortfolioInputNumber(elements.portfolioPageCostInput.value);
+  const coinId = normalizeCoinId(elements.portfolioPageCoinSelect.value);
+  const coin = findCoin(coinId);
+
+  if (amount <= 0 && total > 0 && cost > 0) {
+    amount = total / cost;
+    elements.portfolioPageAmountInput.value = trimNumber(amount, 8);
+  }
+
+  if (!coin || amount <= 0 || cost <= 0) {
+    return;
+  }
+
+  const editedAt = Date.now();
+  recordPortfolioValuePoint("before-edit", editedAt - 1);
+
+  position.coinId = coin.id;
+  position.amount = amount;
+  position.cost = cost;
+  position.entryPrice = cost;
+  position.wallet = elements.portfolioPageWalletSelect?.value || DEFAULT_POSITION_WALLET;
+  position.date = elements.portfolioPageDateInput.value || position.date || new Date().toISOString().slice(0, 10);
+  position.note = elements.portfolioPageNoteInput.value.trim();
+  position.updatedAt = new Date(editedAt).toISOString();
+
+  recordPortfolioValuePoint("after-edit", editedAt);
+
+  persistPortfolio();
+  closePortfolioCoinModal();
+  renderPortfolio();
+  renderPortfolioPage();
+  renderMetrics();
+  renderPortfolioInsights();
+  setupLiveTickerStream();
+  showToast(
+    `${coin.name || "Позиция"} обновлена`,
+    `${formatAmount(amount)} ${coin.symbol?.toUpperCase() || ""} · цена актива ${formatMoney(cost)}`,
+    amount * cost,
+  );
+}
+
 function getCoinIdFromPortfolioSearch() {
   const value = elements.coinSearchInput.value.trim();
   if (!value) return "";
@@ -6979,6 +7094,8 @@ function isPortfolioValueEventReason(reason) {
   return [
     "before-add",
     "after-add",
+    "before-edit",
+    "after-edit",
     "before-close",
     "after-close",
     "before-remove",
