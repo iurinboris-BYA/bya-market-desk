@@ -8,6 +8,8 @@ const BYACADEMY_CHANNEL_URL = "https://t.me/BYAcadem";
 const MARKET_REFRESH_MS = 30000;
 const NEWS_REFRESH_MS = 12 * 60 * 60 * 1000;
 const LIVE_RENDER_MS = 900;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MOSCOW_OFFSET_MS = 3 * 60 * 60 * 1000;
 const DEFAULT_MARKET_LIMIT = 2000;
 const MARKET_PAGE_SIZE = 250;
 const INITIAL_MARKET_LIMIT = MARKET_PAGE_SIZE;
@@ -3294,8 +3296,9 @@ function renderPortfolioPage() {
   const entries = getPortfolioEntries(scopePositions);
   const enriched = entries.map(enrichPortfolioEntry).filter(Boolean);
   const chartEntries = getPortfolioChartEntries(state.activePortfolioWallet);
-  const dayPnl = chartEntries.reduce((sum, item) => sum + item.dayMove, 0);
-  const dayPct = scopeTotals.value > 0 ? (dayPnl / scopeTotals.value) * 100 : 0;
+  const dayPerformance = getPortfolioMoscowDayPerformance(enriched, scopeTotals);
+  const dayPnl = dayPerformance.pnl;
+  const dayPct = dayPerformance.percent;
 
   elements.portfolioCurrencySelect.value = state.currency;
   elements.portfolioWalletButtons.forEach((button) => {
@@ -3954,6 +3957,78 @@ function enrichPortfolioEntry(entry) {
   const pnlPercent = costValue > 0 ? (pnl / costValue) * 100 : 0;
   const dayMove = currentValue * ((coin.price_change_percentage_24h || 0) / 100);
   return { ...entry, cost, coin, currentValue, costValue, pnl, pnlPercent, dayMove };
+}
+
+function getPortfolioMoscowDayPerformance(entries, scopeTotals = getPortfolioTotals(), now = Date.now()) {
+  const currentValue = Number(scopeTotals.value) || entries.reduce((sum, entry) => sum + (Number(entry.currentValue) || 0), 0);
+  if (!entries.length || currentValue <= 0) {
+    return { pnl: 0, percent: 0, baseline: 0, boundary: getMoscowPortfolioDayStart(now) };
+  }
+
+  const boundary = getMoscowPortfolioDayStart(now);
+  const baseline = entries.reduce((sum, entry) => sum + getPortfolioEntryMoscowDayBaseline(entry, boundary, now), 0);
+  const pnl = currentValue - baseline;
+  const percent = baseline > 0 ? (pnl / baseline) * 100 : 0;
+  return { pnl, percent, baseline, boundary };
+}
+
+function getPortfolioEntryMoscowDayBaseline(entry, boundary, now = Date.now()) {
+  const amount = Number(entry.amount) || 0;
+  if (amount <= 0) return 0;
+
+  const createdAt = getEntryCreatedAt(entry);
+  const costValue = Number(entry.costValue) || (Number(entry.cost) || 0) * amount;
+  if (!Number.isFinite(createdAt) || createdAt >= boundary) {
+    return costValue;
+  }
+
+  const priceAtBoundary = getCoinPriceAtTimestamp(entry.coin, boundary, now);
+  if (Number.isFinite(priceAtBoundary) && priceAtBoundary > 0) {
+    return priceAtBoundary * amount;
+  }
+
+  const currentValue = Number(entry.currentValue);
+  return Number.isFinite(currentValue) && currentValue >= 0 ? currentValue : costValue;
+}
+
+function getMoscowPortfolioDayStart(now = Date.now()) {
+  const moscowNow = new Date(now + MOSCOW_OFFSET_MS);
+  let boundary = Date.UTC(
+    moscowNow.getUTCFullYear(),
+    moscowNow.getUTCMonth(),
+    moscowNow.getUTCDate(),
+    12,
+    0,
+    0,
+  ) - MOSCOW_OFFSET_MS;
+  if (now < boundary) {
+    boundary -= DAY_MS;
+  }
+  return boundary;
+}
+
+function getCoinPriceAtTimestamp(coin, timestamp, now = Date.now()) {
+  const prices = getSparklinePrices(coin);
+  const currentPrice = Number(coin?.current_price);
+  if (!prices.length || !Number.isFinite(timestamp) || !Number.isFinite(now) || timestamp >= now) {
+    return Number.isFinite(currentPrice) ? currentPrice : Number.NaN;
+  }
+
+  const windowStart = now - 7 * DAY_MS;
+  if (timestamp < windowStart) {
+    return Number.isFinite(currentPrice) ? currentPrice : Number.NaN;
+  }
+
+  const progress = Math.max(0, Math.min(1, (timestamp - windowStart) / Math.max(now - windowStart, 1)));
+  const sourceIndex = progress * Math.max(prices.length - 1, 0);
+  const left = Math.floor(sourceIndex);
+  const right = Math.min(prices.length - 1, left + 1);
+  const mix = sourceIndex - left;
+  const leftPrice = Number(prices[left]);
+  const rightPrice = Number(prices[right]);
+  if (!Number.isFinite(leftPrice)) return Number.isFinite(currentPrice) ? currentPrice : Number.NaN;
+  if (!Number.isFinite(rightPrice)) return leftPrice;
+  return leftPrice * (1 - mix) + rightPrice * mix;
 }
 
 function getPortfolioChartEntries(walletId = "all") {
