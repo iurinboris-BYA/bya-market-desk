@@ -3602,11 +3602,14 @@ tbody tr:hover {
 
 .rank-cell {
   position: relative;
-  top: -4px;
+  top: 0;
+  display: inline-flex;
+  min-width: 2ch;
+  justify-content: center;
   color: #8a99a5;
   font-size: 12px;
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .price-cell {
@@ -4320,6 +4323,8 @@ tbody tr:hover {
 
   .segmented {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .portfolio-wallet-tabs {
@@ -4334,6 +4339,9 @@ tbody tr:hover {
 
   .segment {
     flex: 1;
+    min-width: 0;
+    padding: 0 8px;
+    white-space: nowrap;
   }
 }
 
@@ -4548,6 +4556,17 @@ tbody tr:hover {
   .admin-table,
   .table-wrap table {
     min-width: 780px;
+  }
+
+  .market-panel .table-wrap {
+    padding-left: 8px;
+  }
+
+  .market-panel .table-wrap th:nth-child(1),
+  .market-panel .table-wrap td:nth-child(1) {
+    width: 54px;
+    padding-left: 14px;
+    padding-right: 8px;
   }
 
   .portfolio-coin-modal,
@@ -4811,6 +4830,23 @@ body.mobile-preview .admin-table-wrap {
   -webkit-overflow-scrolling: touch;
 }
 
+body.mobile-preview .market-panel .segmented {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+
+body.mobile-preview .market-panel .segment {
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+body.mobile-preview .market-panel .table-wrap {
+  padding-left: 10px;
+}
+
 body.mobile-preview .portfolio-table,
 body.mobile-preview .admin-table,
 body.mobile-preview .table-wrap table {
@@ -4825,7 +4861,9 @@ body.mobile-preview .table-wrap td {
 
 body.mobile-preview .table-wrap th:nth-child(1),
 body.mobile-preview .table-wrap td:nth-child(1) {
-  width: 42px;
+  width: 54px;
+  padding-left: 14px;
+  padding-right: 8px;
 }
 
 body.mobile-preview .table-wrap th:nth-child(2),

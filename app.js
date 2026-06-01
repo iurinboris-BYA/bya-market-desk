@@ -1501,7 +1501,7 @@ function renderWatchlistFilterButton() {
   const availableWatchlistCount = state.watchlist.map((coinId) => findCoin(coinId)).filter(Boolean).length;
   elements.watchlistOnlyBtn.classList.toggle("active", state.showWatchlistOnly);
   elements.watchlistOnlyBtn.disabled = !availableWatchlistCount;
-  elements.watchlistOnlyBtn.textContent = state.showWatchlistOnly ? `★ Избранное (${availableWatchlistCount})` : "★ Избранное";
+  elements.watchlistOnlyBtn.textContent = state.showWatchlistOnly ? `Избранное (${availableWatchlistCount})` : "Избранное";
 }
 
 function getSortValue(coin, sortKey) {
