@@ -354,6 +354,8 @@ const state = {
   currency: "usd",
   sortKey: "market_cap_rank",
   sortDirection: "asc",
+  portfolioSortKey: "",
+  portfolioSortDirection: "desc",
   showWatchlistOnly: false,
   marketLimit: DEFAULT_MARKET_LIMIT,
   visibleMarketRows: MARKET_RENDER_CHUNK_SIZE,
@@ -537,7 +539,8 @@ const elements = {
   closedPositionsMetric: document.querySelector("#closedPositionsMetric"),
   segmentButtons: document.querySelectorAll(".segment"),
   watchlistOnlyBtn: document.querySelector("#watchlistOnlyBtn"),
-  sortHeaderButtons: document.querySelectorAll(".sort-header"),
+  sortHeaderButtons: document.querySelectorAll(".sort-header[data-sort]"),
+  portfolioSortHeaderButtons: document.querySelectorAll(".portfolio-sort-header"),
 };
 
 document.addEventListener("DOMContentLoaded", init);
@@ -810,6 +813,16 @@ function bindEvents() {
   });
   elements.portfolioTableAddBtn.addEventListener("click", () => {
     openPortfolioCoinModal();
+  });
+  elements.portfolioSortHeaderButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const sortKey = button.dataset.portfolioSort;
+      if (!sortKey) return;
+      const isSameSort = state.portfolioSortKey === sortKey;
+      state.portfolioSortKey = sortKey;
+      state.portfolioSortDirection = isSameSort && state.portfolioSortDirection === "desc" ? "asc" : "desc";
+      renderPortfolioPage();
+    });
   });
   elements.portfolioPageTable.addEventListener("click", handlePortfolioTableAction);
   elements.portfolioPageTable.addEventListener("change", handlePortfolioTableChange);
@@ -3371,7 +3384,7 @@ function renderPortfolioPage() {
   const groupableCoinIds = getGroupablePortfolioCoinIds();
   const allGrouped = groupableCoinIds.length > 0 && groupableCoinIds.every((coinId) => state.groupedPortfolioCoins.has(coinId));
   const entries = getPortfolioEntries(scopePositions);
-  const enriched = entries.map(enrichPortfolioEntry).filter(Boolean);
+  const enriched = sortPortfolioEntries(entries.map(enrichPortfolioEntry).filter(Boolean));
   const chartEntries = getPortfolioChartEntries(state.activePortfolioWallet);
   const dayPerformance = getPortfolioMoscowDayPerformance(enriched, scopeTotals);
   const dayPnl = dayPerformance.pnl;
@@ -3383,6 +3396,7 @@ function renderPortfolioPage() {
     const count = getPortfolioScopePositions(button.dataset.portfolioWallet).length;
     button.dataset.count = count;
   });
+  renderPortfolioSortHeaders();
   if (elements.collapsePortfolioBtn) {
     elements.collapsePortfolioBtn.textContent = allGrouped ? "Показать покупки" : "Группировать";
     elements.collapsePortfolioBtn.disabled = !canGroup;
@@ -3415,7 +3429,7 @@ function renderPortfolioPage() {
       <div><span>За 24ч</span><strong>...</strong></div>
       <p>Добавь первую покупку, чтобы увидеть аналитику, график и объединение позиций.</p>
     `;
-    elements.portfolioPageTable.innerHTML = `<tr><td colspan="8" class="empty-state">Портфолио пока пустое. Добавь актив через форму выше.</td></tr>`;
+    elements.portfolioPageTable.innerHTML = `<tr><td colspan="9" class="empty-state">Портфолио пока пустое. Добавь актив через форму выше.</td></tr>`;
     safeDrawPortfolioChart(chartEntries, scopeTotals);
     safeRenderPortfolioChartStats(chartEntries, scopeTotals, dayPnl, dayPct);
     renderPortfolioReport();
@@ -3428,7 +3442,7 @@ function renderPortfolioPage() {
       <div><span>Сейчас в разделе</span><strong>${formatMoney(0)}</strong></div>
       <div><span>Позиций</span><strong>0</strong></div>
     `;
-    elements.portfolioPageTable.innerHTML = `<tr><td colspan="8" class="empty-state">В этом разделе пока нет позиций. Переведи актив из общего списка через колонку «Кошелёк».</td></tr>`;
+    elements.portfolioPageTable.innerHTML = `<tr><td colspan="9" class="empty-state">В этом разделе пока нет позиций. Переведи актив из общего списка через колонку «Кошелёк».</td></tr>`;
     safeDrawPortfolioChart(chartEntries, scopeTotals);
     safeRenderPortfolioChartStats(chartEntries, scopeTotals, dayPnl, dayPct);
     renderPortfolioReport();
@@ -3458,6 +3472,69 @@ function safeDrawPortfolioChart(entries, scopeTotals = getPortfolioTotals()) {
     console.warn("Portfolio chart render failed", error);
     drawPortfolioChartFallback(scopeTotals.value || getPortfolioCurrentValue());
   }
+}
+
+function sortPortfolioEntries(entries = []) {
+  if (!state.portfolioSortKey) return entries;
+
+  const direction = state.portfolioSortDirection === "asc" ? 1 : -1;
+  return [...entries].sort((a, b) => {
+    const first = getPortfolioSortValue(a, state.portfolioSortKey);
+    const second = getPortfolioSortValue(b, state.portfolioSortKey);
+
+    if (typeof first === "string" || typeof second === "string") {
+      return String(first).localeCompare(String(second), "ru", { numeric: true, sensitivity: "base" }) * direction;
+    }
+
+    const numeric = (Number(first) || 0) - (Number(second) || 0);
+    if (numeric !== 0) return numeric * direction;
+    return String(a.coin?.name || "").localeCompare(String(b.coin?.name || ""), "ru", { sensitivity: "base" });
+  });
+}
+
+function getPortfolioSortValue(item, sortKey) {
+  if (sortKey === "coin") {
+    return `${item.coin?.name || ""} ${item.date || ""}`;
+  }
+
+  if (sortKey === "wallet") {
+    return getPortfolioWalletLabel(item.wallet);
+  }
+
+  if (sortKey === "market") {
+    return Number(item.coin?.current_price) || 0;
+  }
+
+  if (sortKey === "entryPrice") {
+    return Number(item.cost) || 0;
+  }
+
+  if (sortKey === "currentUsdt") {
+    return Number(item.currentValue) || 0;
+  }
+
+  if (sortKey === "pnl") {
+    return Number(item.pnl) || 0;
+  }
+
+  if (sortKey === "pnlPercent") {
+    return Number(item.pnlPercent) || 0;
+  }
+
+  return 0;
+}
+
+function renderPortfolioSortHeaders() {
+  elements.portfolioSortHeaderButtons.forEach((button) => {
+    const isActive = button.dataset.portfolioSort === state.portfolioSortKey;
+    const icon = button.querySelector("span");
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-sort", isActive ? (state.portfolioSortDirection === "asc" ? "ascending" : "descending") : "none");
+
+    if (icon) {
+      icon.textContent = isActive ? (state.portfolioSortDirection === "asc" ? "↑" : "↓") : "↕";
+    }
+  });
 }
 
 function drawPortfolioChartFallback(value = 0) {
@@ -3894,6 +3971,9 @@ function portfolioPageRow(item, index) {
   const symbol = (item.coin.symbol || "").toUpperCase();
   const hasRepeats = getPortfolioCoinCount(item.coinId, getPortfolioScopePositions()) > 1;
   const coinIdAttribute = escapeHtml(item.coinId);
+  const currentUsdtValue = Number(item.currentValue) || 0;
+  const entryUsdtValue = Number(item.costValue) || 0;
+  const usdtDelta = currentUsdtValue - entryUsdtValue;
   const entryDetail = item.collapsed
     ? `${formatAmount(item.amount)} ${symbol} · средняя покупка ${formatMoney(item.cost)} · ${formatEntryCount(item.lots)}`
     : `${formatAmount(item.amount)} ${symbol} · покупка ${formatMoney(item.cost)}`;
@@ -3937,6 +4017,13 @@ function portfolioPageRow(item, index) {
         <small>рынок сейчас</small>
       </td>
       <td><strong>${formatMoney(item.cost)}</strong><small>зафиксировано при покупке</small></td>
+      <td>
+        <div class="portfolio-usdt-cell">
+          <span><b>Откуплено</b><strong>${formatUsdtValue(entryUsdtValue)}</strong></span>
+          <span><b>Сейчас</b><strong>${formatUsdtValue(currentUsdtValue)}</strong></span>
+          <small class="${changeClass(usdtDelta)}">${formatUsdtDelta(usdtDelta)}</small>
+        </div>
+      </td>
       <td><strong class="${changeClass(item.pnl)}">${formatPortfolioDeltaMoney(item.pnl)}</strong></td>
       <td><strong class="${changeClass(item.pnlPercent)}">${formatPercent(item.pnlPercent)}</strong></td>
       <td class="portfolio-row-actions">
@@ -7555,6 +7642,23 @@ function formatMoney(value) {
     currency: state.currency.toUpperCase(),
     maximumFractionDigits: amount > 100 ? 0 : 4,
   }).format(amount);
+}
+
+function formatUsdtValue(value) {
+  const amount = Number(value) || 0;
+  const formatted = new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: amount > 100 ? 0 : 4,
+  }).format(amount);
+  return `${formatted} USDT`;
+}
+
+function formatUsdtDelta(value) {
+  const amount = Number(value) || 0;
+  const formatted = new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+  return `${amount > 0 ? "+" : ""}${formatted} USDT`;
 }
 
 function formatLiveMarketPrice(coin) {

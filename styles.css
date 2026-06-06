@@ -1983,20 +1983,22 @@ select:focus {
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  overflow: hidden;
-  border: 1px solid rgba(21, 153, 134, 0.22);
+  position: relative;
+  border: 1px solid rgba(21, 153, 134, 0.24);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 22px rgba(12, 42, 48, 0.08);
 }
 
 .portfolio-book-tab.active {
-  border-color: rgba(21, 153, 134, 0.56);
-  background: linear-gradient(180deg, rgba(226, 251, 246, 0.96), rgba(255, 255, 255, 0.96));
+  border-color: rgba(21, 153, 134, 0.95);
+  background: #0d8f82;
+  box-shadow: 0 10px 24px rgba(13, 143, 130, 0.26);
 }
 
 .portfolio-book-tab-main,
-.portfolio-book-tab-delete {
+.portfolio-book-tab-delete,
+.portfolio-book-tab-rename {
   border: 0;
   background: transparent;
   color: #0b2930;
@@ -2006,12 +2008,42 @@ select:focus {
 }
 
 .portfolio-book-tab-main {
-  max-width: 180px;
+  min-width: 96px;
+  max-width: 240px;
   min-height: 36px;
   padding: 0 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.15;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.portfolio-book-tab.active .portfolio-book-tab-main {
+  min-width: 124px;
+  padding-top: 12px;
+  color: #ffffff;
+}
+
+.portfolio-book-tab.active .portfolio-book-tab-main::before {
+  content: "Сейчас";
+  position: absolute;
+  top: 3px;
+  left: 12px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.portfolio-book-tab-rename {
+  width: 30px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1;
 }
 
 .portfolio-book-tab-delete {
@@ -2026,8 +2058,14 @@ select:focus {
 }
 
 .portfolio-book-tab-main:hover,
-.portfolio-book-tab-delete:hover {
+.portfolio-book-tab-delete:hover,
+.portfolio-book-tab-rename:hover {
   background: rgba(21, 153, 134, 0.08);
+}
+
+.portfolio-book-tab.active .portfolio-book-tab-main:hover,
+.portfolio-book-tab.active .portfolio-book-tab-rename:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .portfolio-book-tab-delete:hover {
@@ -2437,27 +2475,6 @@ body.guest-user .portfolio-page-hero .portfolio-book-switcher {
   font-weight: 900;
 }
 
-.portfolio-modal-tabs {
-  display: flex;
-  gap: 26px;
-  padding: 28px 24px 0;
-}
-
-.portfolio-modal-tabs button {
-  min-height: 42px;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.portfolio-modal-tabs button.active {
-  border-bottom-color: var(--accent);
-  color: var(--ink);
-}
-
 .portfolio-add-form {
   display: grid;
   grid-template-columns: 1.25fr 0.8fr 0.8fr 0.75fr minmax(160px, 1fr) auto;
@@ -2506,7 +2523,11 @@ body.guest-user .portfolio-page-hero .portfolio-book-switcher {
 }
 
 #portfolioPageCoinSelect {
-  min-height: 44px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .portfolio-add-form textarea {
@@ -2554,7 +2575,7 @@ body.guest-user .portfolio-page-hero .portfolio-book-switcher {
   margin: 0 18px 18px;
   border: 1px solid rgba(21, 153, 134, 0.16);
   border-radius: 8px;
-  overflow-x: hidden;
+  overflow-x: auto;
   background: #ffffff;
   box-shadow: 0 16px 34px rgba(12, 25, 35, 0.06);
 }
@@ -2598,42 +2619,47 @@ body.guest-user .portfolio-page-hero .portfolio-book-switcher {
 
 .portfolio-table th:nth-child(2),
 .portfolio-table td:nth-child(2) {
-  width: 14%;
+  width: 13%;
   text-align: left;
 }
 
 .portfolio-table th:nth-child(3),
 .portfolio-table td:nth-child(3) {
-  width: 10%;
+  width: 9%;
   text-align: left;
 }
 
 .portfolio-table th:nth-child(4),
 .portfolio-table td:nth-child(4) {
-  width: 11%;
+  width: 10%;
 }
 
 .portfolio-table th:nth-child(5),
 .portfolio-table td:nth-child(5) {
-  width: 12%;
+  width: 10%;
 }
 
 .portfolio-table th:nth-child(6),
 .portfolio-table td:nth-child(6) {
-  width: 11%;
+  width: 13%;
 }
 
 .portfolio-table th:nth-child(7),
 .portfolio-table td:nth-child(7) {
   width: 9%;
+}
+
+.portfolio-table th:nth-child(8),
+.portfolio-table td:nth-child(8) {
+  width: 8%;
   padding-right: 18px;
   text-align: right;
   white-space: nowrap;
 }
 
-.portfolio-table th:nth-child(8),
-.portfolio-table td:nth-child(8) {
-  width: 27%;
+.portfolio-table th:nth-child(9),
+.portfolio-table td:nth-child(9) {
+  width: 24%;
   min-width: 304px;
   padding-left: 18px;
   text-align: right;
@@ -2984,6 +3010,10 @@ body.guest-user .portfolio-page-hero .portfolio-book-switcher {
   padding: 16px 18px 0;
 }
 
+.watchlist-panel {
+  min-height: 520px;
+}
+
 .watchlist-panel .subtle-button {
   min-height: 34px;
   padding: 0 12px;
@@ -3191,6 +3221,36 @@ button.group-position-badge {
   color: var(--gain);
 }
 
+.portfolio-usdt-cell {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+}
+
+.portfolio-usdt-cell span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.portfolio-usdt-cell b {
+  font-weight: 800;
+}
+
+.portfolio-usdt-cell strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.portfolio-usdt-cell small {
+  font-size: 12px;
+  font-weight: 900;
+  text-align: right;
+}
+
 .portfolio-table td:nth-child(3) small {
   width: 112px;
   text-align: center;
@@ -3253,6 +3313,29 @@ button.group-position-badge {
   font-weight: 800;
 }
 
+.close-percent-slider {
+  gap: 10px;
+}
+
+.close-percent-slider span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.close-percent-slider b {
+  color: var(--accent-strong);
+  font-size: 13px;
+}
+
+.portfolio-close-form input[type="range"] {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  accent-color: var(--accent);
+}
+
 .close-percent-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3268,6 +3351,12 @@ button.group-position-badge {
   background: #ffffff;
   color: var(--accent-strong);
   font-weight: 900;
+}
+
+.close-percent-actions button.active {
+  border-color: rgba(21, 153, 134, 0.52);
+  background: #eefaf7;
+  color: var(--ink);
 }
 
 .close-position-modal .portfolio-calculation-preview {
@@ -3795,6 +3884,10 @@ tbody tr:hover {
   position: relative;
 }
 
+.portfolio-page-coin-picker {
+  position: relative;
+}
+
 .coin-search-dropdown {
   position: absolute;
   top: calc(100% + 6px);
@@ -3908,11 +4001,55 @@ tbody tr:hover {
 }
 
 .watchlist-list {
-  max-height: 360px;
+  max-height: 560px;
   overflow-y: auto;
-  padding-right: 10px;
+  gap: 6px;
+  padding: 10px 12px 14px;
   scrollbar-color: rgba(21, 153, 134, 0.42) rgba(12, 25, 35, 0.08);
   scrollbar-width: thin;
+}
+
+.watchlist-compact-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.watchlist-compact-main {
+  display: contents;
+}
+
+.watchlist-compact-row .watchlist-coin-link {
+  gap: 8px;
+}
+
+.watchlist-compact-row img {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.watchlist-compact-row .remove-button {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+}
+
+.watchlist-compact-meta,
+.watchlist-compact-extra {
+  display: none;
+}
+
+.watchlist-filter.active {
+  border-color: rgba(21, 153, 134, 0.46);
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .asset-card {
@@ -3922,6 +4059,25 @@ tbody tr:hover {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
+}
+
+#watchlistList .asset-card {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  min-height: 44px;
+  padding: 7px 9px;
+}
+
+#watchlistList .asset-card-header {
+  gap: 8px;
+}
+
+#watchlistList .asset-card-row {
+  display: none;
+}
+
+#watchlistList .watchlist-coin-link {
+  min-width: 0;
 }
 
 .asset-card-header,
@@ -4343,6 +4499,14 @@ tbody tr:hover {
     padding: 0 8px;
     white-space: nowrap;
   }
+
+  .watchlist-panel {
+    min-height: auto;
+  }
+
+  .watchlist-list {
+    max-height: 360px;
+  }
 }
 
 @media (max-width: 520px) {
@@ -4575,6 +4739,10 @@ tbody tr:hover {
     max-height: calc(100vh - 20px);
     overflow-y: auto;
     padding: 18px;
+  }
+
+  .portfolio-coin-modal .portfolio-add-form {
+    grid-template-columns: 1fr;
   }
 
   .cookie-consent {
