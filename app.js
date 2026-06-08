@@ -1197,7 +1197,14 @@ async function updateAuxiliaryMarketData(globalPromise, fearGreedPromise) {
 }
 
 async function fetchMarket(options = {}) {
-  const firstPage = await fetchMarketPage(1, INITIAL_MARKET_LIMIT);
+  let firstPage = [];
+
+  try {
+    firstPage = await fetchMarketPage(1, INITIAL_MARKET_LIMIT);
+  } catch (error) {
+    console.warn("CoinGecko first page unavailable, using CoinPaprika market", error);
+    firstPage = await fetchPaprikaMarket();
+  }
 
   if (!Array.isArray(firstPage) || !firstPage.length) {
     throw new Error("Market data unavailable");
