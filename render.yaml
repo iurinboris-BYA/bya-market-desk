@@ -2,15 +2,21 @@ services:
   - type: web
     name: bya-market-desk
     env: node
-    plan: free
+    plan: starter
     buildCommand: ""
     startCommand: "npm start"
     healthCheckPath: /api/health
+    disks:
+      - name: bya-market-desk-data
+        mountPath: /var/data
+        sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: PUBLIC_BASE_URL
         value: https://bya-market-desk.onrender.com
+      - key: DATA_DIR
+        value: /var/data
       - key: EMAIL_FROM
         sync: false
       - key: RESEND_API_KEY
