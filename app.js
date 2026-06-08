@@ -2780,6 +2780,11 @@ async function loadAccountPortfolioData() {
   try {
     const response = await fetch(`/api/user/portfolio?email=${encodeURIComponent(state.user.email)}&token=${encodeURIComponent(state.user.authToken || "")}`, { cache: "no-store" });
     if (!response.ok) {
+      if (response.status === 401 || response.status === 404) {
+        state.user = null;
+        localStorage.removeItem(STORAGE_KEYS.user);
+        renderUser();
+      }
       throw new Error(`Portfolio load ${response.status}`);
     }
 
