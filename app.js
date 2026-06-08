@@ -2555,7 +2555,6 @@ async function saveUserProfile(event) {
     state.user.authToken = registration.authToken;
   }
   localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(state.user));
-  await offerTelegramLink();
   await loadAccountPortfolioData();
   closeAuthModal();
   renderUser();
@@ -2596,7 +2595,6 @@ async function loginUserProfile() {
       authToken: data.authToken || "",
     };
     localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(state.user));
-    await offerTelegramLink();
     await loadAccountPortfolioData();
     closeAuthModal();
     renderUser();
